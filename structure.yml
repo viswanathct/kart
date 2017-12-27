@@ -1,0 +1,61 @@
+---
+# Domain Objects
+
+Config: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
+
+CustomerLocation: chooseLocation()
+
+Shop:
+  id: integer
+  name: string
+  address: string
+
+Shops: Map<Shop> # The id is assumed to be the mapKey. Alternatively, it could be map<'id', Shop>.
+
+Article:
+  id: integer
+  shop: integer
+  count: integer
+  unitPrice: double
+  taxPercentage: 0.05
+  cost: count * unitPrice
+  taxes: cost * taxPercentage
+  addToCart:
+    action:
+      - Cart[shop] = id
+      - count = count + 1
+  removeFromCart:
+    action:
+      - count = count + 1
+
+Cart:
+  Shop: confirm("Want to discard items from $existing[name] and buy from $incoming[name]?", existing, incoming) # A Shop would be passed to the setter, for further action.
+  title: Shop[name]
+  Articles:
+    type: map
+    mapKey: id
+    elementType: Article
+    filter: Article[shop] == Cart[Shop][id]
+  subTotal:
+    map(Articles, Article => Article.count * Article.unitPrice)
+    # SELECT Article.count * Article.unitPrice from Articles
+    # sum(Articles.count * Articles.unitPrice) # In which the Articles.cost is an enumerator (like that of Python's Pandas).
+  taxes: reduce(Atricles, 0, Article, trailing => trailing += Article.taxes)
+  netTotal: subTotal + deliveryCharge + Taxes
+
+deliveryCharge:
+  function: case
+  param: Cart[subTotal]
+  cases:
+    param > Config[freeDeliveryMinimum] : 0
+    default : Config[deliveryCharge]
+
+Promos: Map<Promo> # This essentially is a shorthand for Promos is a map, with Promo[id] as its mapKey.
+
+Promo:
+  id: string
+  effect: {} # Should be an effect overriding the Cart.
+
+Menu:
+  shop: integer
+  Articles: [Article...]
