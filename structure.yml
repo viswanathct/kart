@@ -9,27 +9,67 @@ Shop:
   id: integer
   name: string
   address: string
+  deliveryDuration: Duration
+  rating: double
+  avgCost: double
+  Tags: [string]
+  Cuisines: [string]
+  Offers: [Offer] # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
 
-Shops: Map<Shop> # The id is assumed to be the mapKey. Alternatively, it could be map<'id', Shop>.
+Shops:
+  type: Map<Shop> # The id is assumed to be the mapKey. Alternatively, it could be map<'id', Shop>.
+  read:
+    CustomerLocation: CustomerLocation
+
+searchText: string
+
+FiltersSelection:
+  Tags:
+    hasOffers:
+      type: boolean
+      value: False
+    isPureVeg:
+      type: boolean
+      value: False # #Note: The value signifies, whether the filter is applied or not.
+  AppliedTagFilters: filter(Filter.Tags, true) # #Note: The key is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
+
+Filters:
+  # locationFilter: Shop => Shop[deliveryDuration] <= Config[maxDeliveryDuration] #
+  tagFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists.
+  cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
+  searchFilter: Shop => when(searchText, has(Shop[name], searchText)) # Returning undefined is interpreted as not filtered.
+
+ShopSelector:
+  sortByKey: [deliveryDuration, avgCost, rating]
+  Shops:
+    type: List<Shop>
+    filter: cascade(Filters.tagFilter, Filters.cuisineFilter, )
+    sortBy: sortByKey
 
 Article:
   id: integer
   shop: integer
+  classification: 'dessert'
   count: integer
   unitPrice: double
   taxPercentage: 0.05
   cost: count * unitPrice
   taxes: cost * taxPercentage
+  Customizations:
+      customization_1:
+        name: string
+        cost: 10
   addToCart:
     action:
-      - Cart[shop] = id
+      - Cart[Shop] = Shops[id]
+      - customize()
       - count = count + 1
   removeFromCart:
     action:
       - count = count + 1
 
 Cart:
-  Shop: confirm("Want to discard items from $existing[name] and buy from $incoming[name]?", existing, incoming) # A Shop would be passed to the setter, for further action.
+  Shop: when(existing, confirm("Want to discard items from $existing[name] and buy from $incoming[name]?", existing, incoming)) # A Shop would be passed to the setter, for further action. #Note: The function would be called only when there's an existing value.
   title: Shop[name]
   Articles:
     type: map

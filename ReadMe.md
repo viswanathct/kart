@@ -17,9 +17,12 @@ Thoughts
 
 * Fields could be declared to be invisible, by setting the super property of the ui-schema, hidden to true.
 
+* Lazy-evaluation on the client, of the UI, could improve performance.
+
 Log
 ---
 
 * 171227
 
   * 1438  Initial commit, with a basic structure, pulled solely out of the existing conception of the App.
+  * 1930  Added filtering.
