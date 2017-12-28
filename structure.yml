@@ -1,101 +1,158 @@
 ---
 # Domain Objects
+imports:
+  - 'eka.shorthands.types' # Provides type shorthands.
 
-Config: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
+declarations: # Declarations are a way to declare shorthands.
+  shared:
+    scope: [client, server] # #Later: Think of inferring (implicit) scope, by identifying the object type through its properties.
 
-CustomerLocation: chooseLocation()
+structure:
+  Session:
+    scope: shared
+    properties:
+      user: string
+      password: password # The scope, client is implied for the type, password.
 
-Shop:
-  id: integer
-  name: string
-  address: string
-  deliveryDuration: Duration
-  rating: double
-  avgCost: double
-  Tags: [string]
-  Cuisines: [string]
-  Offers: [Offer] # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
+  Server:
+    type: group
+    properties:
+      Config:
+        params:
+          user: session.user
+        properties: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
 
-Shops:
-  type: Map<Shop> # The id is assumed to be the mapKey. Alternatively, it could be map<'id', Shop>.
-  read:
-    CustomerLocation: CustomerLocation
+      Profile:
+        params:
+          user: session.user
+        properties: {}
 
-searchText: string
+      Shop: # The same structure is used to define, both the data and the UI schemas.
+        type: object
+        scope: server
+        properties:
+          id: integer
+          name: string
+          address: string
+          dit: Duration
+          rating: double
+          avgCost: double
+          Tags: [string]
+          Cuisines: [string]
+          Offers: [Offer] # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
 
-FiltersSelection:
-  Tags:
-    hasOffers:
-      type: boolean
-      value: False
-    isPureVeg:
-      type: boolean
-      value: False # #Note: The value signifies, whether the filter is applied or not.
-  AppliedTagFilters: filter(Filter.Tags, true) # #Note: The key is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
+      Shops:
+        type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DLS parsing.
+        element: Shop
+        # The id is assumed to be the mapKey. Alternatively, it could be map<'id', Shop>.
+        params: # This maps to the resource /Shops/{CustomerLocation}
+          CustomerLocation: CustomerLocation
 
-Filters:
-  # locationFilter: Shop => Shop[deliveryDuration] <= Config[maxDeliveryDuration] #
-  tagFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists.
-  cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
-  searchFilter: Shop => when(searchText, has(Shop[name], searchText)) # Returning undefined is interpreted as not filtered.
+      Article:
+        params:
+          shop: Shop.id
+        properties:
+          id: integer
+          shop: [integer] # The value could also be a list of providers.
+          classification: string
+          count: integer
+          unitPrice: double
+          taxPercentage: 0.05 # This is interpreted as hard-coded value, as it doesn't match any other variable.
+          cost:
+            value: count * unitPrice
+            scope: local
+          taxes:
+            value: cost * taxPercentage
+            scope: local
+          addedTime: when(existing == null, currentTime())
+          Customizations:
+              customization_1:
+                name: string
+                cost: 10
+        actions: # The scope of actions, is always, ui.
+          addToCart:
+            title: '+'
+            actions:
+              - Cart[Shop] = Shops[id]
+              - customize()
+              - count = count + 1
+          removeFromCart:
+            title: '-'
+            enabled: count > 0
+            actions:
+              - count = count - 1
+              - addedTime = null
 
-ShopSelector:
-  sortByKey: [deliveryDuration, avgCost, rating]
-  Shops:
-    type: List<Shop>
-    filter: cascade(Filters.tagFilter, Filters.cuisineFilter, )
-    sortBy: sortByKey
+  UI:
+    type: group
+    scope: ui # The config is shared with all the members of the group.
+    properties:
+      CustomerLocation: chooseLocation()
 
-Article:
-  id: integer
-  shop: integer
-  classification: 'dessert'
-  count: integer
-  unitPrice: double
-  taxPercentage: 0.05
-  cost: count * unitPrice
-  taxes: cost * taxPercentage
-  Customizations:
-      customization_1:
-        name: string
-        cost: 10
-  addToCart:
-    action:
-      - Cart[Shop] = Shops[id]
-      - customize()
-      - count = count + 1
-  removeFromCart:
-    action:
-      - count = count + 1
+      searchText: string
 
-Cart:
-  Shop: when(existing, confirm("Want to discard items from $existing[name] and buy from $incoming[name]?", existing, incoming)) # A Shop would be passed to the setter, for further action. #Note: The function would be called only when there's an existing value.
-  title: Shop[name]
-  Articles:
-    type: map
-    mapKey: id
-    elementType: Article
-    filter: Article[shop] == Cart[Shop][id]
-  subTotal:
-    map(Articles, Article => Article.count * Article.unitPrice)
-    # SELECT Article.count * Article.unitPrice from Articles
-    # sum(Articles.count * Articles.unitPrice) # In which the Articles.cost is an enumerator (like that of Python's Pandas).
-  taxes: reduce(Atricles, 0, Article, trailing => trailing += Article.taxes)
-  netTotal: subTotal + deliveryCharge + Taxes
+      FiltersSelection:
+        properties: # #Note: The type of the resource is inferred to be 'object' due to the existence of the property, properties.
+          Tags:
+            hasOffers:
+              type: boolean
+              value: False
+            isPureVeg:
+              type: boolean
+              value: False # #Note: The value signifies, whether the filter is applied or not.
+          AppliedTagFilters: filter(Filter.Tags, true) # #Note: The key is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
 
-deliveryCharge:
-  function: case
-  param: Cart[subTotal]
-  cases:
-    param > Config[freeDeliveryMinimum] : 0
-    default : Config[deliveryCharge]
+      Filters:
+        properties:
+          # locationFilter: Shop => Shop[dit] <= Config[maxDIT] #
+          tagFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists.
+          cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
+          searchFilter: Shop => when(searchText, has(Shop[name], searchText)) # Returning undefined is interpreted as not filtered.
 
-Promos: Map<Promo> # This essentially is a shorthand for Promos is a map, with Promo[id] as its mapKey.
+      ShopSelector:
+        properties: # #ToDo: Implement an action.
+          sortKey: [dit, avgCost, rating]
+          Shops:
+            type: List<Shop>
+            filter: cascade(Filters.tagFilter, Filters.cuisineFilter, Filters.searchFilter)
+            sortKey: sortKey
 
-Promo:
-  id: string
-  effect: {} # Should be an effect overriding the Cart.
+  Cart:
+    providers: [shared] # #Note: This essentially is prototypal inheritance and are recursive (multi-level).
+    properties:
+      Shop: when(existing, confirm("Want to discard items from $existing[name] and buy from $incoming[name]?", existing, incoming)) # A Shop would be passed to the setter, for further action. #Note: The function would be called only when there's an existing value.
+      id: Shop[id]
+      title:
+        value: Shop[name]
+        scope: 'ui'
+      Articles: # #ToDo: Figure out the way to mimic the required behavior of representing articles with different customizations as different items.
+        type: list
+        elementType: Article
+        orderBy: Article.addedTime
+        filter: Article[shop] == Cart[Shop][id]
+      subTotal:
+        map(Articles, Article => Article.count * Article.unitPrice)
+        # SELECT Article.count * Article.unitPrice from Articles
+        # sum(Articles.count * Articles.unitPrice) # In which the Articles.cost is an enumerator (like that of Python's Pandas).
+      taxes: reduce(Articles, 0, (Article, trailing => trailing += Article.taxes))
+      netTotal: subTotal + deliveryCharge + Taxes
+      createdAt:
+        value: currentTime()
+        scope: store
 
-Menu:
-  shop: integer
-  Articles: [Article...]
+      deliveryCharge:
+        function: case
+        param: Cart[subTotal]
+        cases:
+          param > Config[freeDeliveryMinimum] : 0
+          default : Config[deliveryCharge]
+
+  Promos: Map<Promo> # This essentially is a shorthand for Promos is a map, with Promo[id] as its mapKey.
+
+  Promo:
+    id: string
+    effect: {} # Should be an effect overriding the Cart.
+
+  Menu:
+    shop: integer
+    Articles: [Article...]
