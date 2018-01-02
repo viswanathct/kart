@@ -1,57 +1,63 @@
 ---
 # Domain Objects
 imports:
-  - 'eka.shorthands.types' # Provides type shorthands.
+  - eka.shorthands.types.* # Provides type shorthands.
+  - services # #ToDo: Think of using python style "as" keyword.
 
 declarations: # Declarations are a way to declare shorthands.
   shared:
-    scope: [client, server] # #Later: Think of inferring (implicit) scope, by identifying the object type through its properties.
+    scope: client, server # #Later: Think of inferring (implicit) scope, by identifying the object type through its properties.
+
+  location:
+    fields: # Properties defined under fields are accessible through the parent element. ie: lat could be accessed as location.lat.
+      lat: double
+      long: double
 
 structure:
   Session:
-    scope: shared
-    properties:
+    scope: shared # #Note: The absence of the 'id' field implies that this is a create request.
+    fields:
       user: string
       password: password # The scope, client is implied for the type, password.
 
   Server:
     type: group
-    properties:
+    scope: server
+    children:
       Config:
-        params:
-          user: session.user
-        properties: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
+        fields: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
 
       Profile:
-        params:
-          user: session.user
-        properties: {}
+        fields:
+          id: Sessions.user
 
       Shop: # The same structure is used to define, both the data and the UI schemas.
-        type: object
-        scope: server
-        properties:
+        type: object # id is assumed to be the param for read requests.
+        fields:
           id: integer
-          name: string
+          namße: string
           address: string
           dit: Duration
           rating: double
           avgCost: double
-          Tags: [string]
-          Cuisines: [string]
-          Offers: [Offer] # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
+          Tags: List<string>
+          Cuisines: List<string>
+          Offers: List<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
+        error: shop-fetch-failed
 
       Shops:
-        type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DLS parsing.
-        element: Shop
-        # The id is assumed to be the mapKey. Alternatively, it could be map<'id', Shop>.
+        type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DSL parsing.
+        element: shop
+        # The id is assumed to be the mapKey. Alternatively, it could be map<shop.id, shop>.
         params: # This maps to the resource /Shops/{CustomerLocation}
-          CustomerLocation: CustomerLocation
+          CustomerLocation: CustomerLocation #ToDo: Figure out the default representation of complex objects in queries. They could be inline JSON or multiple query parameters. ie: The representation of this field could be ?CustomerLocation={x,y} or ?lat=x&long=y.
+          # Note: When all expect one fields are optional, the expected field becomes the default.
+          searchText:
+            value: searchText
+            optional: true
 
       Article:
-        params:
-          shop: Shop.id
-        properties:
+        fields:
           id: integer
           shop: [integer] # The value could also be a list of providers.
           classification: string
@@ -83,34 +89,54 @@ structure:
               - count = count - 1
               - addedTime = null
 
+      Articles:
+        params:
+          shop: Shop.id
+
   UI:
     type: group
     scope: ui # The config is shared with all the members of the group.
-    properties:
-      CustomerLocation: chooseLocation()
-
+    children: # Children is a property which facilitates access, but nothing more.
+      CustomerLocation: location # Though the property is under the group, ui. It lives in the parent scope, as groups don't have a scope of their own.
       searchText: string
 
-      FiltersSelection:
-        properties: # #Note: The type of the resource is inferred to be 'object' due to the existence of the property, properties.
-          Tags:
-            hasOffers:
-              type: boolean
-              value: False
-            isPureVeg:
-              type: boolean
-              value: False # #Note: The value signifies, whether the filter is applied or not.
-          AppliedTagFilters: filter(Filter.Tags, true) # #Note: The key is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
-
       Filters:
-        properties:
+        children:
           # locationFilter: Shop => Shop[dit] <= Config[maxDIT] #
           tagFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists.
-          cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
-          searchFilter: Shop => when(searchText, has(Shop[name], searchText)) # Returning undefined is interpreted as not filtered.
+          # cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
+          searchFilter: Shop => when(searchText, has(Shop[name], searchText)) # Returning 'undefined' is interpreted as not filtered.
+
+      App:
+        type: ui
+        nodes:
+          Tabs:
+            type: tree # It's used for readability, by wrapping its elements under *nodes* properties.
+            nodes:
+              Home:
+                CustomerLocation: location, services.getCurrentLocation(CustomerLocation)
+
+              Explore:
+                searchText: plugins.autoFill(searchText)
+
+          TabSwitcher:
+              type: ui.tabSwitcher
+              config:
+                tabs: App.Tabs
+
+        FiltersSelection:
+          fields: # #Note: The type of the resource is inferred to be 'object' due to the existence of the property, fields.
+            Tags:
+              hasOffers:
+                type: boolean
+                value: False
+              isPureVeg:
+                type: boolean
+                value: False # #Note: The value signifies, whether the filter is applied or not.
+            AppliedTagFilters: filter(Filter.Tags, true) # #Note: The key is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
 
       ShopSelector:
-        properties: # #ToDo: Implement an action.
+        fields: # #ToDo: Implement an action.
           sortKey: [dit, avgCost, rating]
           Shops:
             type: List<Shop>
@@ -119,13 +145,13 @@ structure:
 
   Cart:
     providers: [shared] # #Note: This essentially is prototypal inheritance and are recursive (multi-level).
-    properties:
+    fields:
       Shop: when(existing, confirm("Want to discard items from $existing[name] and buy from $incoming[name]?", existing, incoming)) # A Shop would be passed to the setter, for further action. #Note: The function would be called only when there's an existing value.
       id: Shop[id]
       title:
         value: Shop[name]
-        scope: 'ui'
-      Articles: # #ToDo: Figure out the way to mimic the required behavior of representing articles with different customizations as different items.
+        scope: ui
+      Articles: # #ToDo: Figure out the way to mimic the required behaviour of representing articles with different customizations as different items.
         type: list
         elementType: Article
         orderBy: Article.addedTime

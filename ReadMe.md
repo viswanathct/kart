@@ -6,7 +6,7 @@ Kart
 ToDo
 ----
 
-* Think of using the dot notation, instead of using square brackets. As, it might be more readable.
+* Write the imports.
 
 Notes
 -----
@@ -23,10 +23,15 @@ Notes
   * local - Processed on both ends, independently.
   * store - A sealed scope, accessible only within the server side store layer (SI - Storage Interface).
 
+Decisions
+---------
+
+* Decided have the same syntax, without exceptions, to denote the structures, so to allow for automation.
+
 Thoughts
 --------
 
-* Later, SQL expressions could be borrowed to achieve language independence. The choice is due to SQL being declarative, already. And also because of the availability of a well defined spec. As of now, the square bracket syntax of accessing members is preferred, as it could be used without changes in few languages like JS, Python, PHP and Ruby.
+* Later, SQL expressions could be borrowed to achieve language independence. The choice is due to SQL being declarative, already. And also because of the availability of a well defined spec.
 
 * Fields could be declared to be invisible, by setting the super property of the ui-schema, hidden to true.
 
@@ -58,4 +63,18 @@ Log
   * 1318  Decided to postpone the envisioned DLS parsing, till the structure becomes stable.
   * 1505  Identified the scopes.
   * 1508  Decided to use lowercase for property names, for simplicity.
-  * 1735  Notation, group introduced. 
+  * 1735  Notation, group introduced.
+
+* 171229
+
+  * 1235  Decided to use both the dot and the square-brackets notations. First, for its readability and the second, for allowing dynamic property keys.
+
+* 180102
+
+  * 1210  Decided to give control of the properties to respective modules. Especially to use *$* to denote self attributes of UI trees.
+  * 1213  Decided to implement processors as modules, to allow for evolutionary design.
+  * 1222  Decided against using *$* properties, so to be explicit, thus readable. This also would encourage the use of modules (so readability could be maintained) and also eases automation, by reducing exceptions.
+  * 1413  Decided to use the $ notation of KISS, at least for the UI.
+  * 1632  Reverted the decision of using $ notations. Instead restructured the existing property *properties* to accommodate the needs.
+  * 1632  Split the property, named properties into fields and nodes to differentiate data fields from UI nodes.
+  * 2052  Made the params property optional on resources.
