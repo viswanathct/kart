@@ -78,3 +78,10 @@ Log
   * 1632  Reverted the decision of using $ notations. Instead restructured the existing property *properties* to accommodate the needs.
   * 1632  Split the property, named properties into fields and nodes to differentiate data fields from UI nodes.
   * 2052  Made the params property optional on resources.
+
+* 180103
+
+  * 0942  Decided to use query strings to represent complex objects in URLs, for readability. This could be switched to JSON through configuration.
+  * 1140  Wrote the first import.
+  * 1210  Renamed the property sortKey, to sortOrder, so to allow for multiple sorts.
+  * 1235  Extracted out the server configs.

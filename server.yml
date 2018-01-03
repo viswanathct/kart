@@ -1,0 +1,48 @@
+---
+# #Note: This is defined separately, as it's shared by multiple apps.
+imports:
+  - eka.shorthands.types.* # Provides type shorthands.
+
+Server:
+  type: group
+  scope: server
+  children:
+    Shop: # The same structure is used to define, both the data and the UI schemas.
+      type: object # id is assumed to be the param for read requests.
+      fields:
+        id: integer
+        name: string
+        address: string
+        lat: double, store
+        long: double, store
+        dit: Duration
+        rating: double
+        avgCost: double
+        Tags: List<string>
+        Cuisines: List<string>
+        Offers: List<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
+      error: shop-fetch-failed
+
+    Dish:
+      fields:
+        id: integer
+        shop: [integer] # The value could also be a list of providers.
+        classification: string
+        count: integer, shared # Other fields are rendered as read-only boxes, as they live only on the server. This one is rendered in an input box, as this is shared.
+        unitPrice: double
+        taxPercentage: 0.05, double, hidden # The first item is interpreted as a hard-coded value, as it doesn't match any other variable.
+        cost:
+          value: count * unitPrice
+          scope: local
+        taxes:
+          value: cost * taxPercentage
+          scope: local
+        addedTime: when(existing == null, currentTime())
+        Customizations:
+            customization_1:
+              name: string
+              cost: 10
+
+    promo:
+      id: string
+      effect: {} # Should be an effect overriding the Cart.
