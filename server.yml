@@ -8,7 +8,7 @@ Server:
   scope: server
   children:
     Shop: # The same structure is used to define, both the data and the UI schemas.
-      type: object # id is assumed to be the param for read requests.
+      type: object # 'id' is assumed to be the param for read requests. The request format is configurable to use query-strings or URL parts.
       fields:
         id: integer
         name: string
@@ -17,6 +17,9 @@ Server:
         long: double, store
         dit: Duration
         rating: double
+        relevance:
+          providers: double
+          value: services.getShopRelevance(Session.User)
         avgCost: double
         Tags: List<string>
         Cuisines: List<string>
@@ -32,12 +35,13 @@ Server:
         taxPercentage: 0.05, double, hidden # The first item is interpreted as a hard-coded value, as it doesn't match any other variable.
         Customizations:
           type: List
+          key: name
           element: # This is a JSON field.
-            key: name
             fields:
               name: string
               cost: double
 
     promo:
       id: string
+      weightage: double
       effect: {} # Should be an effect overriding the Cart.

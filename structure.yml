@@ -1,4 +1,5 @@
 ---
+# #Note: The structures, alike, are often represented by different syntax, so to showcase the possibilities.
 imports:
   - eka.shorthands.types.* # Provides type shorthands.
   - services # #ToDo: Think of using python style "as" keyword.
@@ -13,64 +14,63 @@ declarations: # Declarations are a way to declare shorthands.
       long: double
 
 structure:
-  Session:
-    scope: shared # #Note: The absence of the 'id' field implies that this is a create request.
-    fields:
+  Session: # Session handler is a (shared) Service. It takes care of the authentication of all requests.
+    scope: shared
+    fields: # #Note: The absence of the 'id' field implies that this is a create request.
       user: string
       password: password # The scope, client is implied for the type, password.
 
   Order:
     providers: [shared] # #Note: This essentially is prototypal inheritance and are recursive (multi-level).
+    sync: true # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be populated to the app, on load.
+    filter: state == 'current' # This will query the route "/Order", no-params would be passed though, as the server knows the values.
     fields:
-      Shop: when(existing, confirm("Want to discard items from $existing.name and buy from $incoming.name?", existing, incoming)) # A shop would be passed to the setter, for further action. #Note: The function would be called only when there's an existing value.
+      Shop:
+        filter: Incoming => when(Shop, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
       Items:
         type: list
         filter: Items.Dish.Shop == Shop
         element:
           Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
-          Customizations: filter(collect(Dish.Customizations), true).name # The collect function collects the data through a generated form.
+          Customizations: filter(collect(Dish.Customizations), true).name # The collect function collects the data through a generated form, based on the given schema (Dish.Customizations). When a user cancels the action, every action till the event (of adding an Item) is cancelled.
           cost:
             scope: local
             value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost)
       subTotal: sum(Items.cost)
-      taxes: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes))
-      netTotal: subTotal + deliveryCharge + Taxes
+      taxes: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes)) # This isn't written as sum(Items.Dish.taxes), so to demonstrate the function, reduce.
+      netTotal: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy-evaluation).
       createdAt:
         value: currentTime()
         scope: store
 
-      deliveryCharge:
-        function: case
+      deliveryCharge: # This is a structural form of a function (which could be coded to). This is written so, to showcase function structures.
+        type: function
+        name: case
         param: Cart.subTotal
         cases:
           param > Config.freeDeliveryMinimum: 0
           default: Config.deliveryCharge
 
   Server:
-    type: group
+    type: group # Groups are used to share properties across its children.
     scope: server
     children:
       Config:
         fields: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
 
-      Profile:
-        fields:
-          id: Sessions.user
-
-      shop: server.shop # #Note: This is an implicit import from configs/shop.yml.
+      Profile: {}
 
       promo: server.promo
 
       Shops:
-        type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DSL parsing.
-        element: shop
-        # The id is assumed to be the mapKey. Alternatively, it could be map<shop.id, shop>.
-        params: # This maps to the resource /Shops/{CustomerLocation}
-          CustomerLocation: CustomerLocation # The field is required, as it isn't explicitly marked as optional.
-
-        filter: CustomerLocation => services.isShopWithinRadius(CustomerLocation, Config.deliveryRange) # The table shop is inferred to be iterated from the element type (shop).
+        type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DSL parsing. #Note: A map is used, not a list, as there isn't a need for keeping it ordered.
+        element: server.shop # #Note: This is an implicit import from configs/server.yml.
+        # The id is assumed to be the key. Alternatively, it could be map<Shop.id, Shop>.
+        filter:
+          scope: shared
+          value: None => services.isShopWithinRadius(CustomerLocation, Config.deliveryRange) # The table shop is inferred to be iterated from the element type (shop). This also maps to the resource /Shops/{CustomerLocation}, as the server doesn't know the value (it knows Config.deliveryRange, though). The request is made again, when the CustomerLocation changes. #Note: This flow depends upon the scope of the call isShopWithinRadius limited to the server (ie: it shouldn't be available in the client).
         limit: 100
-        orderBy: shop.rating, descending
+        orderBy: relevance descending
 
   UI:
     type: group
@@ -81,7 +81,6 @@ structure:
 
       Filters:
         children:
-          # locationFilter: Shop => Shop.dit <= Config.maxDIT
           tagFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists. Variable dependency too should be taken care of.
           # cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
           searchFilter: Shop => when(searchText, has(Shop.name, searchText)) # Returning 'undefined' is interpreted as not filtered. #Note: The same filters could be used on the server side too.
@@ -97,7 +96,7 @@ structure:
             title: '+'
             sequence:
               - Order.Shop = Shop
-              - Order.Items.add(Dish)
+              - Order.Items.add(Dish) # The added Dish is mapped to Items.Dish (through a type match). Other fields aren't passed as they are collected through the UI.
           removeOrderItem:
             children:
               matchingItem = Item => Item.Dish.id = Dish.id # #Later: The function could be automatically generated, by comparing the inline lambdas.
@@ -107,7 +106,7 @@ structure:
               - Order.Items.remove(last(filter(Order.Items, OrderItem => OrderItem.Dish == Dish)))
 
       App:
-        type: ui
+        type: ui # This also implies scope: ui.
         route: MainScreen
         nodes:
           MainScreen:
@@ -117,7 +116,7 @@ structure:
               nodes:
                 Home:
                   nodes:
-                    CustomerLocation: services.getCurrentLocation(CustomerLocation)
+                    CustomerLocation: Global.CustomerLocation = services.getUserLocation() # The keyword, Global is used for mere demonstration.
 
                     FiltersSelection:
                       fields: # #Note: The type of the resource is inferred to be 'object' due to the existence of the property, fields.
@@ -128,13 +127,15 @@ structure:
                           isPureVeg:
                             type: boolean
                             value: False # #Note: The value signifies, whether the filter is applied or not.
-                        AppliedTagFilters: filter(Filter.Tags, true) # #Note: The key is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
+                        AppliedTagFilters: filter(Filter.Tags, true) # #Note: This variable is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
 
-                    Promos: Map<promo> # This essentially is a shorthand for a map of promos, with promo[id] as its mapKey.
+                    Promos:
+                      type: List<promo> # This essentially is a shorthand for a list of promos.
+                      orderBy: weightage descending # The weightage is of the element.
 
                     ShopSelector:
-                      fields: # #ToDo: Implement an action.
-                        sortOrder: dit, avgCost, rating desc
+                      fields:
+                        sortOrder: rating descending, dit, avgCost
                         Shops:
                           type: List<Shop>
                           value: Shops
@@ -146,32 +147,28 @@ structure:
                     searchText:
                       value: searchText
                       handler: plugins.autoFill
-                      config:
+                      plugins.autoFill.config: # This config is for the plugin, autoFill.
                         limit: 10
 
                 Cart:
-                  value: Order
-                  scope: ui
+                  value: Order # This binds the Cart to the Order.
                   fields:
                     Items: # This overlays Order.Items
-                      groupBy: Item.Dish, Item.Customizations
+                      groupBy: Items.Dish, Items.Customizations # #Later: Indexes on groupBy columns could be auto-generated to make the calculation cycles efficient.
                       fields:
-                        cost: sum(Item.cost) # All fields that aren't in groupBy should be over-rode with aggregators. #Later: Default aggregators can be provided, based on the data type of the fields. The function mode for string, sum for double etc.
+                        cost: sum(Items.cost) # All fields that aren't in groupBy should be over-rode with aggregators. #Later: Default aggregators can be provided, based on the data type of the fields. The function mode for string, sum for double etc. # #Note: Items, here, resolve to the grouped Items, not the ungroupped Items. The later could be accessed through the notation, Cart.Items.
                         count: count()
 
                   actions: # The scope of actions, is always, ui.
                     addOrderItem:
                       title: '+'
-                      sequence:
-                        - Order.Items.add(Dish)
+                      action: Order.Items.add(Dish) # The symbol Dish is resolved to Items.Dish, through cascading.
                     removeOrderItem:
-                      children:
-                        matchingItem = Item => Item.Dish.id = Dish.id # #Later: The function could be automatically generated, by comparing the inline lambdas.
                       title: '-'
                       sequence:
                         - "Order.Items.remove(last(filter(Order.Items,
-                            OrderItem => OrderItem.Dish == Item.Dish && OrderItem.Customizations == Item.Customizations
-                          ).Customizations)"
+                            OrderItem => OrderItem.Dish == Items.Dish && OrderItem.Customizations == Items.Customizations
+                          ))"
 
               Account: {}
 
@@ -182,8 +179,6 @@ structure:
 
           Dishes:
             type: List # No UI spec is given as it would be rendered as a simple, scrollable list.
-            element: Dish
-            params:
-              Shop: SelectedShop  # This essentially queries /Dish?Shop=<SelectedShop.id>, when the list is empty.
-
-          Customizer: {}
+            element:
+              type: Dish
+              filter: Dish.Shop == SelectedShop # This would query the route /Dish?Shop=<SelectedShop.id>. The filter would not apply to client actions, as they don't affect the list (values of this list are set only from the server).
