@@ -26,22 +26,17 @@ Server:
     Dish:
       fields:
         id: integer
-        shop: [integer] # The value could also be a list of providers.
-        classification: string
-        count: integer, shared # Other fields are rendered as read-only boxes, as they live only on the server. This one is rendered in an input box, as this is shared.
+        Shop: Shop # The data type of the field would be that of the id of the Complex type (Shop). This also creates a foreign key constraint on RDBMS. The capital case on the field name also signifies this.
+        classification: [string]
         unitPrice: double
         taxPercentage: 0.05, double, hidden # The first item is interpreted as a hard-coded value, as it doesn't match any other variable.
-        cost:
-          value: count * unitPrice
-          scope: local
-        taxes:
-          value: cost * taxPercentage
-          scope: local
-        addedTime: when(existing == null, currentTime())
         Customizations:
-            customization_1:
+          type: List
+          element: # This is a JSON field.
+            key: name
+            fields:
               name: string
-              cost: 10
+              cost: double
 
     promo:
       id: string

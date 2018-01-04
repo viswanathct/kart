@@ -41,6 +41,12 @@ Thoughts
 
 * Package specific configuration could be specified by, using the package id-s as keys in the configuration.
 
+* Optimization shouldn't be done on the structure, but by the parser.
+
+* All platform functions should be expressable through configuration.
+
+* The configuration is the common language.
+
 Later
 -----
 
@@ -85,3 +91,11 @@ Log
   * 1140  Wrote the first import.
   * 1210  Renamed the property sortKey, to sortOrder, so to allow for multiple sorts.
   * 1235  Extracted out the server configs.
+  * 1629  Decided to differentiate between the dot and the square brackets access of object properties. The dot denotes the property of an object, where as the square brackets denotes the object of a class.
+
+* 180104
+
+  * 1327  Formalized the representation of the Complex types (through their ID-s), when they are in the fields of other types.
+  * 1327  Renamed sortOrder to orderBy to mimic SQL syntax, so to reduce the learning curve.
+  * 1335  Introduced groupBy.
+  * 1507  Introduced route.

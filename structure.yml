@@ -19,6 +19,33 @@ structure:
       user: string
       password: password # The scope, client is implied for the type, password.
 
+  Order:
+    providers: [shared] # #Note: This essentially is prototypal inheritance and are recursive (multi-level).
+    fields:
+      Shop: when(existing, confirm("Want to discard items from $existing.name and buy from $incoming.name?", existing, incoming)) # A shop would be passed to the setter, for further action. #Note: The function would be called only when there's an existing value.
+      Items:
+        type: list
+        filter: Items.Dish.Shop == Shop
+        element:
+          Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
+          Customizations: filter(collect(Dish.Customizations), true).name # The collect function collects the data through a generated form.
+          cost:
+            scope: local
+            value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost)
+      subTotal: sum(Items.cost)
+      taxes: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes))
+      netTotal: subTotal + deliveryCharge + Taxes
+      createdAt:
+        value: currentTime()
+        scope: store
+
+      deliveryCharge:
+        function: case
+        param: Cart.subTotal
+        cases:
+          param > Config.freeDeliveryMinimum: 0
+          default: Config.deliveryCharge
+
   Server:
     type: group
     scope: server
@@ -54,32 +81,34 @@ structure:
 
       Filters:
         children:
-          # locationFilter: Shop => Shop[dit] <= Config[maxDIT] #
+          # locationFilter: Shop => Shop.dit <= Config.maxDIT
           tagFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists. Variable dependency too should be taken care of.
           # cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
-          searchFilter: Shop => when(searchText, has(Shop[name], searchText)) # Returning 'undefined' is interpreted as not filtered. #Note: The same filters could be used on the server side too.
+          searchFilter: Shop => when(searchText, has(Shop.name, searchText)) # Returning 'undefined' is interpreted as not filtered. #Note: The same filters could be used on the server side too.
 
       Shop:
         action: SelectedShop = Shop # The default action is a touch or a click.
+        route: Dishes # Route to the screen, Dishes when a shop is clicked.
 
       Dish:
         providers: server.Dish
         actions: # The scope of actions, is always, ui.
-          addToCart:
+          addOrderItem:
             title: '+'
             sequence:
-              - Cart[Shop] = Shops[id]
-              - customize()
-              - count = count + 1
-          removeFromCart:
+              - Order.Shop = Shop
+              - Order.Items.add(Dish)
+          removeOrderItem:
+            children:
+              matchingItem = Item => Item.Dish.id = Dish.id # #Later: The function could be automatically generated, by comparing the inline lambdas.
             title: '-'
-            enabled: count > 0
+            enabled: count(filter(Order.Items.Dish, Dish)) # When value is given for filter, other than a function, an equality check would be done.
             sequence:
-              - count = count - 1
-              - addedTime = null
+              - Order.Items.remove(last(filter(Order.Items, OrderItem => OrderItem.Dish == Dish)))
 
       App:
         type: ui
+        route: MainScreen
         nodes:
           MainScreen:
             Tabs:
@@ -105,12 +134,12 @@ structure:
 
                     ShopSelector:
                       fields: # #ToDo: Implement an action.
-                        sortOrder: [dit, avgCost, rating]
+                        sortOrder: dit, avgCost, rating desc
                         Shops:
                           type: List<Shop>
                           value: Shops
                           filter: cascade(Filters.tagFilter, Filters.cuisineFilter, Filters.searchFilter)
-                          sortOrder: sortOrder
+                          orderBy: sortOrder
 
                 Explore:
                   nodes:
@@ -121,34 +150,28 @@ structure:
                         limit: 10
 
                 Cart:
-                  providers: [shared] # #Note: This essentially is prototypal inheritance and are recursive (multi-level).
+                  value: Order
+                  scope: ui
                   fields:
-                    Shop: when(existing, confirm("Want to discard items from $existing[name] and buy from $incoming[name]?", existing, incoming)) # A shop would be passed to the setter, for further action. #Note: The function would be called only when there's an existing value.
-                    id: Shop[id]
-                    title:
-                      value: Shop[name]
-                      scope: ui
-                    Dishes: # #ToDo: Figure out the way to mimic the required behavior of representing articles with different customizations as different items.
-                      type: list
-                      elementType: Dish
-                      orderBy: Dish.addedTime
-                      filter: Dish[shop] == Cart[Shop][id]
-                    subTotal:
-                      map(Dishes, Dish => Dish.count * Dish.unitPrice)
-                      # SELECT Dish.count * Dish.unitPrice from Dishes
-                      # sum(Dishes.count * Dishes.unitPrice) # In which the Dishes.cost is an enumerator (like that of Python's Pandas).
-                    taxes: reduce(Dishes, 0, (Dish, trailing => trailing += Dish.taxes))
-                    netTotal: subTotal + deliveryCharge + Taxes
-                    createdAt:
-                      value: currentTime()
-                      scope: store
+                    Items: # This overlays Order.Items
+                      groupBy: Item.Dish, Item.Customizations
+                      fields:
+                        cost: sum(Item.cost) # All fields that aren't in groupBy should be over-rode with aggregators. #Later: Default aggregators can be provided, based on the data type of the fields. The function mode for string, sum for double etc.
+                        count: count()
 
-                    deliveryCharge:
-                      function: case
-                      param: Cart[subTotal]
-                      cases:
-                        param > Config[freeDeliveryMinimum]: 0
-                        default: Config[deliveryCharge]
+                  actions: # The scope of actions, is always, ui.
+                    addOrderItem:
+                      title: '+'
+                      sequence:
+                        - Order.Items.add(Dish)
+                    removeOrderItem:
+                      children:
+                        matchingItem = Item => Item.Dish.id = Dish.id # #Later: The function could be automatically generated, by comparing the inline lambdas.
+                      title: '-'
+                      sequence:
+                        - "Order.Items.remove(last(filter(Order.Items,
+                            OrderItem => OrderItem.Dish == Item.Dish && OrderItem.Customizations == Item.Customizations
+                          ).Customizations)"
 
               Account: {}
 
@@ -161,4 +184,6 @@ structure:
             type: List # No UI spec is given as it would be rendered as a simple, scrollable list.
             element: Dish
             params:
-              shop: SelectedShop.id # This essentially queries /Dish?shop=<x>, when the list is empty.
+              Shop: SelectedShop  # This essentially queries /Dish?Shop=<SelectedShop.id>, when the list is empty.
+
+          Customizer: {}
