@@ -5,8 +5,10 @@ imports:
   - services # #ToDo: Think of using python style "as" keyword.
 
 declarations: # Declarations are a way to declare shorthands.
+  server: customerServer
+
   shared:
-    scope: client, server # #Later: Think of inferring (implicit) scope, by identifying the object type through its properties.
+    scope: customerApp, server # #Later: Think of inferring (implicit) scope, by identifying the object type through its properties.
 
   location:
     fields: # Properties defined under fields are accessible through the parent element. ie: lat could be accessed as location.lat.
@@ -20,36 +22,16 @@ structure:
       user: string
       password: password # The scope, client is implied for the type, password.
 
-  Order:
-    providers: [shared] # #Note: This essentially is prototypal inheritance and are recursive (multi-level).
-    sync: true # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be populated to the app, on load.
-    filter: state == 'current' # This will query the route "/Order", no-params would be passed though, as the server knows the values.
+  Order: # This will query the route "/Order", no-params would be passed though, as the server knows the values. The call to create would be an update instead, if there were an Order returned from the server.
+    providers: server.Order
+    sync: true # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be posted to the app, on load.
     fields:
       Shop:
         filter: Incoming => when(Shop, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
       Items:
-        type: list
         filter: Items.Dish.Shop == Shop
-        element:
-          Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
+        fields:
           Customizations: filter(collect(Dish.Customizations), true).name # The collect function collects the data through a generated form, based on the given schema (Dish.Customizations). When a user cancels the action, every action till the event (of adding an Item) is cancelled.
-          cost:
-            scope: local
-            value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost)
-      subTotal: sum(Items.cost)
-      taxes: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes)) # This isn't written as sum(Items.Dish.taxes), so to demonstrate the function, reduce.
-      netTotal: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy-evaluation).
-      createdAt:
-        value: currentTime()
-        scope: store
-
-      deliveryCharge: # This is a structural form of a function (which could be coded to). This is written so, to showcase function structures.
-        type: function
-        name: case
-        param: Cart.subTotal
-        cases:
-          param > Config.freeDeliveryMinimum: 0
-          default: Config.deliveryCharge
 
   Server:
     type: group # Groups are used to share properties across its children.
@@ -90,7 +72,7 @@ structure:
         route: Dishes # Route to the screen, Dishes when a shop is clicked.
 
       Dish:
-        providers: server.Dish
+        providers: server.Dish # Providers provide the base for the object. The provided properties are overridden by customizations. There could be multiple providers (as a list) for an object.
         actions: # The scope of actions, is always, ui.
           addOrderItem:
             title: '+'

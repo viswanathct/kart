@@ -41,6 +41,42 @@ Server:
               name: string
               cost: double
 
+    Order:
+      filter: state == 'current'
+      fields:
+        Shop: Shop
+        state: enum('current', 'delivered', 'cancelled')
+        Items:
+          type: list
+          fields: # Items could be read from and written to their own table (if the platform is an RDBMS), as the declaration has its own fields.
+            Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
+            Customizations:
+              type: delimitedList
+              delimiter: '\n'
+              filter: Customization in Dish.Customizations # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
+            cost:
+              private: true
+              value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # #ToDo: Figure-out a way to convey cost discrepancies. As of now it isn't possible as the field would not be provide by the client.
+        subTotal:
+          private: true # Figure out a shorthand for declaring private properties. Figure out whether this is needed, first.
+          value: sum(Items.cost)
+        taxes:
+          private: true
+          value: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes)) # This isn't written as sum(Items.Dish.taxes), so to demonstrate the function, reduce.
+        netTotal:
+          private: true
+          value: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy-evaluation).
+        createdAt:
+          value: currentTime()
+          scope: store
+        deliveryCharge: # This is a structural form of a function (which could be coded to). This is written so, to showcase function structures.
+          type: function
+          name: case
+          param: Cart.subTotal
+          cases:
+            param > Config.freeDeliveryMinimum: 0
+            default: Config.deliveryCharge
+
     promo:
       id: string
       weightage: double
