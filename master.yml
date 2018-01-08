@@ -1,0 +1,14 @@
+---
+# #Note: Though the master file could have explicit imports,
+
+kart:
+  customerApp: # The key name would be the namespace for the underlying structures. The key name would be used to find the file for the structure. Note that, structures could be inlined too.
+    type: app.client # The dependency on the server app, would be resolved automatically, while parsing outgoing connections.
+
+  customerServer:
+    type: app.server
+
+  objectStore:
+    type: app.store # #Note: Dependencies of the DB-s are resoled through incoming connections.
+    config: # #Note: The config could be overridden externally.
+      platform: MySQL
