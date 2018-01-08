@@ -3,81 +3,125 @@
 imports:
   - eka.shorthands.types.* # Provides type shorthands.
 
-Server:
-  type: group
-  scope: server
-  children:
-    Shop: # The same structure is used to define, both the data and the UI schemas.
-      type: object # 'id' is assumed to be the param for read requests. The request format is configurable to use query-strings or URL parts.
-      fields:
-        id: integer
-        name: string
-        address: string
-        lat: double, store
-        long: double, store
-        dit: Duration
-        rating: double
-        relevance:
-          providers: double
-          value: services.getShopRelevance(Session.User)
-        avgCost: double
-        Tags: List<string>
-        Cuisines: List<string>
-        Offers: List<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
-      error: shop-fetch-failed
+declarations:
+  CurrentUser: User[Session.username] # This would be null, till a session is created.
 
-    Dish:
-      fields:
-        id: integer
-        Shop: Shop # The data type of the field would be that of the id of the Complex type (Shop). This also creates a foreign key constraint on RDBMS. The capital case on the field name also signifies this.
-        classification: [string]
-        unitPrice: double
-        taxPercentage: 0.05, double, hidden # The first item is interpreted as a hard-coded value, as it doesn't match any other variable.
-        Customizations:
-          type: List
-          key: name
-          element: # This is a JSON field.
+structure:
+  Server:
+    type: group
+    scope: server
+    members:
+      Config:
+        fields: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
+
+      User:
+        key: username
+        fields:
+          username: string
+          password: password # The fields is encrypted by default.
+
+      Session:
+        providers: User
+        filter: Local.User.password == User[Local.User.username].password
+        persist: false # This tells the store handlers, to skip processing the item.
+
+      Profile: {}
+
+      Shop: # The same structure is used to define, both the data and the UI schemas.
+        type: object # 'id' is assumed to be the param for read requests. The request format is configurable to use query-strings or URL parts.
+        fields:
+          id: integer
+          name: string
+          address: string
+          lat: double, store
+          long: double, store
+          dit: Duration
+          rating: double
+          relevance:
+            providers: double
+            value: services.getShopRelevance(CurrentUser)
+          avgCost: double
+          Tags: List<string>
+          Cuisines: List<string>
+          Offers: List<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
+        error: shop-fetch-failed
+
+      Shops:
+        type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DSL parsing. #Note: A map is used, not a list, as there isn't a need for keeping it ordered.
+        element: server.shop # #Note: This is an implicit import from configs/server.yml.
+        # The id is assumed to be the key. Alternatively, it could be map<Shop.id, Shop>.
+        filter:
+          value: None => services.isShopWithinRadius(CustomerLocation, Config.deliveryRange) # The table shop is inferred to be iterated from the element type (shop). This also maps to the resource /Shops/{CustomerLocation}, as the server doesn't know the value (it knows Config.deliveryRange, though). The request is made again, when the CustomerLocation changes. #Note: This flow depends upon the scope of the call isShopWithinRadius limited to the server (ie: it shouldn't be available in the client).
+        limit: 100
+        orderBy: relevance descending
+
+      Dish:
+        fields:
+          id: integer
+          Shop: Shop # The data type of the field would be that of the id of the Complex type (Shop). This also creates a foreign key constraint on RDBMS. The capital case on the field name also signifies this.
+          classification: [string]
+          unitPrice: double
+          taxPercentage: 0.05, double, hidden # The first item is interpreted as a hard-coded value, as it doesn't match any other variable.
+          Customizations:
+            type: List
+            key: name
+            element: # This is a JSON field.
+              fields:
+                name: string
+                cost: double
+
+      UserSpecific:
+        type: group
+        filter:
+          extend: User == CurrentUser # This filter is added to every child of the group.
+        fields: # Like other properties, fields to are overlaid on all the members.
+          User:
+            private: true
+            value: Session.User
+        members:
+          Order:
+            filter: state == 'current'
             fields:
-              name: string
-              cost: double
+              Shop: Shop
+              state:
+                type: enum('current', 'placed', 'dispatched', 'delivered', 'cancelled')
+                value: when(state == 'cancelled', ensure(state == 'current', error('Cannot cancel the order.'))
+              DeliveryAddress: CustomerAddress
+              Items:
+                type: list
+                fields: # Items could be read from and written to their own table (if the platform is an RDBMS), as the declaration has its own fields.
+                  Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
+                  Customizations:
+                    type: delimitedList
+                    delimiter: '\n'
+                    filter: Customization in Dish.Customizations # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
+                  cost:
+                    private: true
+                    value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # #ToDo: Check whether this notation could rather be written as private: <value>. The problem is that it reduces readability, by requiring implicit knowledge.
+              subTotal:
+                private: true # Figure out a shorthand for declaring private properties. Figure out whether this is needed, first.
+                value: sum(Items.cost)
+              taxes:
+                private: true
+                value: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes)) # This isn't written as sum(Items.Dish.taxes), so to demonstrate the function, reduce.
+              netTotal:
+                private: true
+                value: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy-evaluation).
+              createdAt:
+                value: currentTime()
+                scope: store
+              deliveryCharge: # This is a structural form of a function (which could be coded to). This is written so, to showcase function structures.
+                type: function
+                name: case
+                param: Cart.subTotal
+                cases:
+                  param > Config.freeDeliveryMinimum: 0
+                  default: Config.deliveryCharge
 
-    Order:
-      filter: state == 'current'
-      fields:
-        Shop: Shop
-        state: enum('current', 'delivered', 'cancelled')
-        Items:
-          type: list
-          fields: # Items could be read from and written to their own table (if the platform is an RDBMS), as the declaration has its own fields.
-            Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
-            Customizations:
-              type: delimitedList
-              delimiter: '\n'
-              filter: Customization in Dish.Customizations # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
-            cost:
-              private: true
-              value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # #ToDo: Figure-out a way to convey cost discrepancies. As of now it isn't possible as the field would not be provide by the client.
-        subTotal:
-          private: true # Figure out a shorthand for declaring private properties. Figure out whether this is needed, first.
-          value: sum(Items.cost)
-        taxes:
-          private: true
-          value: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes)) # This isn't written as sum(Items.Dish.taxes), so to demonstrate the function, reduce.
-        netTotal:
-          private: true
-          value: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy-evaluation).
-        createdAt:
-          value: currentTime()
-          scope: store
-        deliveryCharge: # This is a structural form of a function (which could be coded to). This is written so, to showcase function structures.
-          type: function
-          name: case
-          param: Cart.subTotal
-          cases:
-            param > Config.freeDeliveryMinimum: 0
-            default: Config.deliveryCharge
+        CustomerAddress:
+          address: string
 
-    promo:
-      id: string
-      weightage: double
-      effect: {} # Should be an effect overriding the Cart.
+      promo:
+        id: string
+        weightage: double
+        effect: {} # Should be an effect overriding the Cart.
