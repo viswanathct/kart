@@ -1,4 +1,4 @@
-Kart
+aKart
 ====
 
   An experimental mock, to help with developing Eka. The mocks should essentially be able to convey the structure of Swiggy.
@@ -17,6 +17,8 @@ ToDo
 Notes
 -----
 
+* The essential goal is to encourage, the formalization of frequently used structures.
+
 * Everything is a resource, may it be a state, record or something else. ie: They have to support CRUD operations.
 
 * The complex structures allowed are limited to Lists and Maps, as these are the only needed structures to represent any complex structures.
@@ -26,6 +28,10 @@ Notes
 * Structures act as classes, when acting as providers and as singletons, when not.
 
 * Only changes would be transmitted by default.
+
+* Object overlays have three parts: first the extension through providers, then any customizations and then the hiding of items by making them private.
+
+* Imports are simple object extensions, with collision detection. Implicit overlays are considered as collisions. Imports should occur only from top to bottom and not right to left. ie: Providers shouldn't override earlier providers (left to right), but customizations should be done for such providers (top to bottom). This is to reign-in hidden structures.
 
 Decisions
 ---------
@@ -40,12 +46,16 @@ Decisions
 
 * Decided not to have partial providers, as it would mess-up the structure by complicating the abstractions. ie: Parts of structures, implicitly combined to make a a structure is often impossible to comprehend or maintain.
 
+* Routes of the UI represent actual visual elements. Elements are under a strict tree, even the loose ones like message-boxes reside under global.popups element.
+
+* Every property would support the value, none, to unset existing settings and possibly use defaults. And the value inherit, to inherit the value of its parent. just like CSS.
+
 Thoughts
 --------
 
 * Writing native services would quicken the MVP.
 
-* Later, SQL expressions could be borrowed to achieve language independence. The choice is due to SQL being declarative, already. And also because of the availability of a well defined spec.
+* SQL expressions could be borrowed to achieve language independence. The choice is due to SQL being declarative, already. And also because of the availability of a well defined spec.
 
 * Fields could be declared to be invisible, by setting the super property of the ui-schema, hidden to true.
 
@@ -74,6 +84,8 @@ Thoughts
 * DB migrations through object diffs, with previous commits. Or maintaining a last-known-good-build file of the super structure.
 
 * Dev version of the Apps could be built by adding dev-plugins to the build.
+
+* Message boxes could be derived through schema, with buttons replacing radios.
 
 Learned
 -------
@@ -163,3 +175,8 @@ Log
   * 1157  Redid the structure of the master file, to follow a common syntax of the other files. It is now a special file only by convention.
   * 1400  Decided to have standardized errors.
   * 1422  Figured out error handling.
+  * 1635  Replaced the property private, with sharing, so to support read-only and write-only fields.
+  * 1645  Reassigned the property, config to handler specific configuration.
+  * 1650  Introduced the property field<x>.optional.
+  * 1654  Introduced the function, refresh, to re-evaluate expressions.
+  * 1745  Introduced the function, ensure.

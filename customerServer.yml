@@ -41,15 +41,15 @@ structure:
             providers: double
             value: services.getShopRelevance(CurrentUser)
           avgCost: double
-          Tags: List<string>
-          Cuisines: List<string>
-          Offers: List<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
+          Tags: list<string>
+          Cuisines: list<string>
+          Offers: list<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
         error:
           type: generic
           message: "Operation failed." # The system itself should have pre-defined error codes and messages, depends
 
       Shops:
-        type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DSL parsing. #Note: A map is used, not a list, as there isn't a need for keeping it ordered.
+        type: map # #Later: The notation map<Shop> could be used, after the implementation of DSL parsing. #Note: A map is used, not a list, as there isn't a need for keeping it ordered.
         element: server.shop # #Note: This is an implicit import from configs/server.yml.
         # The id is assumed to be the key. Alternatively, it could be map<Shop.id, Shop>.
         filter:
@@ -62,12 +62,14 @@ structure:
           id: integer
           Shop: Shop # The data type of the field would be that of the id of the Complex type (Shop). This also creates a foreign key constraint on RDBMS. The capital case on the field name also signifies this.
           classification: [string]
+          image: url
+          text: string
           unitPrice: double
           taxPercentage:
             type: double
             default: 0.05
           Customizations:
-            type: List
+            type: list
             key: name
             element: # This is a JSON field.
               fields:
@@ -82,7 +84,7 @@ structure:
             type: errors.permission # This would be converted to proper HTTP error codes and messages by the builders.
         fields: # Like other properties, fields to are overlaid on all the members.
           User:
-            private: true
+            sharing: private
             value: Session.User
         members:
           Order:
@@ -91,7 +93,9 @@ structure:
               Shop: Shop
               state:
                 type: enum('current', 'placed', 'dispatched', 'delivered', 'cancelled')
-              DeliveryAddress: CustomerAddress
+              DeliveryAddress:
+                type: CustomerAddress
+                sharing: write-only
               Items:
                 type: list
                 fields: # Items could be read from and written to their own table (if the platform is an RDBMS), as the declaration has its own fields.
@@ -101,20 +105,21 @@ structure:
                     delimiter: '\n'
                     filter: Customization in Dish.Customizations # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
                   cost:
-                    private: true
-                    value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # #ToDo: Check whether this notation could rather be written as private: <value>. The problem is that it reduces readability, by requiring implicit knowledge.
-              subTotal:
-                private: true # Figure out a shorthand for declaring private properties. Figure out whether this is needed, first.
-                value: sum(Items.cost)
+                    sharing: private # private fields are evaluated locally and not shared. These are helpful, when multiple local evaluations are needed on the field.
+                    value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost)
+              subTotal: private, sum(Items.cost) # The second item is assigned to the property, value. It's so as the expression doesn't resolve to a provider.
               taxes:
-                private: true
+                sharing: private
                 value: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes)) # This isn't written as sum(Items.Dish.taxes), so to demonstrate the function, reduce.
               netTotal:
-                private: true
+                sharing: private
                 value: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy-evaluation).
               createdAt:
                 value: currentTime()
                 scope: store
+              remarks:
+                type: string
+                optional: true # The default value is false.
               deliveryCharge: # This is a structural form of a function (which could be coded to). This is written so, to showcase function structures.
                 type: function
                 name: case
@@ -124,7 +129,10 @@ structure:
                   default: Config.deliveryCharge
 
         CustomerAddress:
-          address: string
+          limit: 5 # This will limit both the reads and writes.
+          providers: shared.location # This is an implicit import.
+          fields:
+            addressText: string
 
       promo:
         id: string

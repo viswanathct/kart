@@ -1,0 +1,6 @@
+---
+declarations: # Declarations are a way to declare shorthands (aliases).
+  location:
+    fields: # Properties defined under fields are accessible through the parent element. ie: lat could be accessed as location.lat.
+      lat: double, private
+      long: double, private

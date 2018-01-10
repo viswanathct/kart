@@ -14,14 +14,12 @@ structure:
       configStore:
         type: app.store # #Note: Dependencies of the DB-s are resoled through incoming connections.
         structure: customerServer # The value is a namespace.
-        config: # #Note: The config could be overridden externally.
-          platform: configStore # This is a custom plugin to manage app config.
+        platform: configStore # This is a custom plugin to manage app config.
 
       objectStore:
         type: app.store
         structure: customerServer # #Note: This will exclude customerServer.Config, as it's handled by the configStore.
-        config:
-          platform: MySQL # #Note: This is a language agnostic builder for interfacing with MySQL.
+        platform: MySQL # #Note: This is a language agnostic builder for interfacing with MySQL.
 
     handlers:
       app.client: react

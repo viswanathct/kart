@@ -8,18 +8,16 @@ imports:
   - services # #ToDo: Think of using python style "as" keyword.
   - customerServer
   - customerServer.*
+  - shared.location
 
 declarations: # Declarations are a way to declare shorthands (aliases).
   server: customerServer # This is an alias, for an implicit import.
 
-  location:
-    fields: # Properties defined under fields are accessible through the parent element. ie: lat could be accessed as location.lat.
-      lat: double
-      long: double
-
 structure:
   CustomerLocation: location
   searchText: string
+  SelectedShop: Shop
+  SelectedAddress: collect(Addresses)
 
   Filters:
     children:
@@ -33,7 +31,7 @@ structure:
     members:
       Shop:
         action: SelectedShop = Shop # The default action is a touch or a click.
-        route: Dishes # Route to the screen, Dishes when a shop is clicked.
+        route: Dishes # Route to the screen, Dishes when a shop is clicked. If the element were in another tab, it would (should) be brought forth too. ie: It couldn't be routed if the containing tab is disabled.
 
       Dish: # The config overrides the values of server.Dish locally, as the server is the providing namespace.
         # providers: server.Dish # Providers provide the base for the object. The provided properties are overridden by customizations. There could be multiple providers (as a list) for an object.
@@ -56,9 +54,14 @@ structure:
           sync: no-wait # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be posted to the app, on load. In case of a failed sync, the object would be restored to its prior state. This is the case with errors too.
           fields: # Note: The field, User is bound to the Session, this automatically imports the Session from the server structure.
             Shop:
-              filter: Incoming => when(Shop, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
+              filter: Incoming => when(Shop != Incoming, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
+            DeliveryAddress:
+              value: SelectedAddress # A collection would be
+              action: refresh(SelectedAddress)
             state:
               sync: wait # The state change of the Order depends upon a success response from the server. #Note: Though wait, is the default option for sync, it's mentioned to override the parent config and to demonstrate.
+              filter: ensure(SelectedAddress) # #Note: For this to work ensure shouldn't return any value. Also, the filter had to be here, as data, which is synced to the do not have a submit method.
+              hidden: true
             Items:
               filter: Items.Dish.Shop == Shop
               fields:
@@ -67,6 +70,7 @@ structure:
   App:
     type: ui
     route: MainScreen
+    config: {} # A placeholder for handler specific data. The core won't process the property.
     nodes:
       MainScreen:
         Tabs:
@@ -89,15 +93,14 @@ structure:
                     AppliedTagFilters: filter(Filter.Tags, true) # #Note: This variable is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
 
                 Promos:
-                  type: List<promo> # This essentially is a shorthand for a list of promos.
+                  type: list<promo> # This essentially is a shorthand for a list of promos.
                   orderBy: weightage descending # The weightage is of the element.
 
                 ShopSelector:
                   fields:
                     sortOrder: rating descending, dit, avgCost
                     Shops:
-                      type: List<Shop>
-                      value: Shops
+                      value: server.Shops
                       filter: cascade(Filters.tagFilter, Filters.cuisineFilter, Filters.searchFilter)
                       orderBy: sortOrder
 
@@ -117,7 +120,6 @@ structure:
                   fields:
                     cost: sum(Items.cost) # All fields that aren't in groupBy should be over-rode with aggregators. #Later: Default aggregators can be provided, based on the data type of the fields. The function mode for string, sum for double etc. # #Note: Items, here, resolve to the grouped Items, not the ungroupped Items. The later could be accessed through the notation, Cart.Items.
                     count: count()
-
                 actions:
                   addOrderItem:
                     title: '+'
@@ -128,11 +130,11 @@ structure:
                       - "Order.Items.remove(last(filter(Order.Items,
                           OrderItem => OrderItem.Dish == Items.Dish && OrderItem.Customizations == Items.Customizations
                         ))"
-
               actions:
                 placeOrder:
                   title: 'Order'
                   action: Order.state = 'placed' # The Order isn't submitted, as it's synced. Any state dependent state / action would be processed once the server returns a success.
+                  # action: submit(Order) # Submission is not possible for synced-data.
 
           Account: {}
 
@@ -142,7 +144,20 @@ structure:
               tabs: App.Tabs
 
       Dishes:
-        type: List # No UI spec is given, so spec would be the same as the default of the handler, for such a structure.
+        type: list # No UI spec is given, so spec would be the same as the default of the handler, for such a structure.
         element:
           type: Dish
           filter: Dish.Shop == SelectedShop # This would query the route /Dish?Shop=<SelectedShop.id>. The filter would not apply to client actions, as they don't affect the list (values of this list are set only from the server).
+          fields:
+            image:
+              size: small # This could also be in the description of the object dish. #Note: Though the structure has two variations of the Dish, the original and the customized, only the later will be built as the former isn't used anywhere else.
+
+      Addresses:
+        type: list
+        value: server.CustomerAddress
+        actions: create, update, delete
+        multiSelect: false # It's the default, yet given as demonstration.
+        # limit: 5 # This will limit both the reads and writes. Later on, the server to could implement the limit, as long as the collection isn't accessed for other purposes. Incase of clashing limits, the highest limit might be applied.
+        # navigation:
+          # type: page # The default is scroll.
+          # pageSize: 5 # The default is auto.
