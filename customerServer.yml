@@ -9,7 +9,7 @@ declarations:
 structure:
   Server:
     type: group
-    scope: server
+    sharing: read
     members:
       Config:
         fields: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
@@ -19,11 +19,6 @@ structure:
         fields:
           username: string
           password: password # The fields is encrypted by default.
-
-      Session:
-        providers: User
-        filter: Local.User.password == User[Local.User.username].password
-        persist: false # This tells the store handlers, to skip processing the item.
 
       Profile: {}
 
@@ -35,7 +30,13 @@ structure:
           address: string
           lat: double, store
           long: double, store
-          dit: Duration
+          deliveryTime: services.getDeliveryTime(Shop, CustomerLocation)
+          offer:
+            type: shared.range # This is a mixin.
+            dataType: integer
+            min: 0
+            max: 100
+            default: 0 # Any property not processed by a mixin will be left as is.
           rating: double
           relevance:
             providers: double
@@ -46,16 +47,21 @@ structure:
           Offers: list<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
         error:
           type: generic
-          message: "Operation failed." # The system itself should have pre-defined error codes and messages, depends
+          message: "Operation failed." # The system itself should have predefined error codes and messages, depends
 
-      Shops:
-        type: map # #Later: The notation map<Shop> could be used, after the implementation of DSL parsing. #Note: A map is used, not a list, as there isn't a need for keeping it ordered.
-        element: server.shop # #Note: This is an implicit import from configs/server.yml.
+      Shops: # This wouldn't be persisted, as it's a map.
+        type: map # #Later: The notation map<Shop> could be used, after the implementation of DSL parsing.
+        element: shop
         # The id is assumed to be the key. Alternatively, it could be map<Shop.id, Shop>.
         filter:
           value: None => services.isShopWithinRadius(CustomerLocation, Config.deliveryRange) # The table shop is inferred to be iterated from the element type (shop). This also maps to the resource /Shops/{CustomerLocation}, as the server doesn't know the value (it knows Config.deliveryRange, though). The request is made again, when the CustomerLocation changes. #Note: This flow depends upon the scope of the call isShopWithinRadius limited to the server (ie: it shouldn't be available in the client).
         limit: 100
         orderBy: relevance descending
+
+      Cuisines:
+        filter: name in Shops.shop.Cuisines
+        fields:
+          name: string
 
       Dish:
         fields:
@@ -64,7 +70,12 @@ structure:
           classification: [string]
           image: url
           text: string
-          unitPrice: double
+          unitPrice:
+            type: shared.range # This is a mixin.
+            dataType: currency
+            min: 0
+            max: 15.8
+            default: 0 # Any property not processed by a mixin will be left as is.
           taxPercentage:
             type: double
             default: 0.05
@@ -74,16 +85,17 @@ structure:
             element: # This is a JSON field.
               fields:
                 name: string
-                cost: double
+                cost: currency
 
-      UserSpecific:
+      UserWritable: # Groups can be nested.
         type: group
+        sharing: readAndWrite
         filter:
           extend: User == CurrentUser # This filter is added to every child of the group.
           error:
             type: errors.permission # This would be converted to proper HTTP error codes and messages by the builders.
         fields: # Like other properties, fields to are overlaid on all the members.
-          User:
+          User:  # #Note: Later on this variable might be skipped in the client as it isn't used there.
             sharing: private
             value: Session.User
         members:
@@ -95,7 +107,7 @@ structure:
                 type: enum('current', 'placed', 'dispatched', 'delivered', 'cancelled')
               DeliveryAddress:
                 type: CustomerAddress
-                sharing: write-only
+                sharing: writeOnly # This forces the customer to fill in the address, every time before ordering.
               Items:
                 type: list
                 fields: # Items could be read from and written to their own table (if the platform is an RDBMS), as the declaration has its own fields.
@@ -138,3 +150,20 @@ structure:
         id: string
         weightage: double
         effect: {} # Should be an effect overriding the Cart.
+
+      KeyValueStore:
+        key: string
+        value: string
+
+  Buffer:
+    type: group
+    persist: false # This tells the store handlers, to skip processing the item. Alternatively, a type, buffer could be passed.
+    members:
+      Session:
+        providers: User
+        filter: Local.User.password == User[Local.User.username].password
+
+    InitData:
+      greeting:
+        filter: KeyValueStore.key == Config.locale + '.greeting.' + (currentTime() // 6)
+        value: KeyValueStore.value

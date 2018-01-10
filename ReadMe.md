@@ -1,4 +1,4 @@
-aKart
+Kart
 ====
 
   An experimental mock, to help with developing Eka. The mocks should essentially be able to convey the structure of Swiggy.
@@ -50,6 +50,8 @@ Decisions
 
 * Every property would support the value, none, to unset existing settings and possibly use defaults. And the value inherit, to inherit the value of its parent. just like CSS.
 
+* Evaluated items are read-only by default.
+
 Thoughts
 --------
 
@@ -63,7 +65,7 @@ Thoughts
 
 * The ui:order property will be auto-generated from the YAML configuration, while transforming it to JSON.
 
-* Package specific configuration could be specified by, using the package id-s as keys in the configuration.
+* Package specific configuration could be specified by, using the package ID-s as keys in the configuration.
 
 * Optimization shouldn't be done on the structure, but by the parser.
 
@@ -104,6 +106,8 @@ Later
 * A plugin for, request batching.
 
 * Generating clients for testing (probing) purposes.
+
+* Unused variables could be detected and skipped from the builds.
 
 Log
 ---
@@ -167,7 +171,7 @@ Log
 
 * 180109
 
-  * 1700  Introduced sync types: wait and no-wait.
+  * 1700  Introduced sync types: wait and noWait.
 
 * 180110
 
@@ -175,8 +179,13 @@ Log
   * 1157  Redid the structure of the master file, to follow a common syntax of the other files. It is now a special file only by convention.
   * 1400  Decided to have standardized errors.
   * 1422  Figured out error handling.
-  * 1635  Replaced the property private, with sharing, so to support read-only and write-only fields.
+  * 1635  Replaced the property private, with sharing, so to support readOnly and writeOnly fields.
   * 1645  Reassigned the property, config to handler specific configuration.
   * 1650  Introduced the property field<x>.optional.
   * 1654  Introduced the function, refresh, to re-evaluate expressions.
   * 1745  Introduced the function, ensure.
+
+* 180111
+
+  * 1000  Decided not to use hyphens in property names and values, so to ease the translation to other languages. camelCase would be used instead.
+  * 1003  Introduced mixins.

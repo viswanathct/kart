@@ -22,7 +22,7 @@ structure:
   Filters:
     children:
       tagFilter: Shop => hasMatch(Shop.Tags, App.Home.FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists. Variable dependency too should be taken care of.
-      # cuisineFilter: Shop => hasMatch(Shop.Tags, FiltersSelection.AppliedTagFilters)
+      cuisineFilter: Shop => hasMatch(Shop.Cuisines, filter(FiltersSelection.Cuisines, true))
       searchFilter: Shop => when(searchText, has(Shop.name, searchText)) # Returning 'undefined' is interpreted as not filtered. #Note: The same filters could be used on the server side too.
 
   Server:
@@ -35,6 +35,7 @@ structure:
 
       Dish: # The config overrides the values of server.Dish locally, as the server is the providing namespace.
         # providers: server.Dish # Providers provide the base for the object. The provided properties are overridden by customizations. There could be multiple providers (as a list) for an object.
+        readOnly: true
         fields:
           taxPercentage:
             hidden: true
@@ -50,8 +51,8 @@ structure:
             sequence:
               - Order.Items.remove(last(filter(Order.Items, OrderItem => OrderItem.Dish == Dish)))
 
-        Order: # This will query the route "/Order", no-params would be passed though, as the server knows the values. The call to create would be an update instead, if there were an Order returned from the server.
-          sync: no-wait # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be posted to the app, on load. In case of a failed sync, the object would be restored to its prior state. This is the case with errors too.
+        Order: # This will query the route "/Order", no params would be passed though, as the server knows the values. The call to create would be an update instead, if there were an Order returned from the server.
+          sync: noWait # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be posted to the app, on load. In case of a failed sync, the object would be restored to its prior state. This is the case with errors too.
           fields: # Note: The field, User is bound to the Session, this automatically imports the Session from the server structure.
             Shop:
               filter: Incoming => when(Shop != Incoming, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
@@ -81,7 +82,7 @@ structure:
               nodes:
                 CustomerLocation: Global.CustomerLocation = services.getUserLocation() # The keyword, Global is used for mere demonstration.
 
-                FiltersSelection:
+                FiltersSelection: # Example for an hybrid (UI+Data) object.
                   fields: # #Note: The type of the resource is inferred to be 'object' due to the existence of the property, fields.
                     Tags:
                       hasOffers:
@@ -90,7 +91,9 @@ structure:
                       isPureVeg:
                         type: boolean
                         value: False # #Note: The value signifies, whether the filter is applied or not.
-                    AppliedTagFilters: filter(Filter.Tags, true) # #Note: This variable is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
+                      Cuisines: server.Cuisines
+                    AppliedTagFilters: filter(Tags, true) # #Note: This variable is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
+                  action: collect() # When a reference isn't passed, the object is inferred to be the reference. Hence, its fields would be used as the schema.
 
                 Promos:
                   type: list<promo> # This essentially is a shorthand for a list of promos.
@@ -134,7 +137,7 @@ structure:
                 placeOrder:
                   title: 'Order'
                   action: Order.state = 'placed' # The Order isn't submitted, as it's synced. Any state dependent state / action would be processed once the server returns a success.
-                  # action: submit(Order) # Submission is not possible for synced-data.
+                  # action: submit(Order) # Submission is not possible for synced data.
 
           Account: {}
 

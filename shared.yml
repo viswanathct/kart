@@ -4,3 +4,22 @@ declarations: # Declarations are a way to declare shorthands (aliases).
     fields: # Properties defined under fields are accessible through the parent element. ie: lat could be accessed as location.lat.
       lat: double, private
       long: double, private
+
+  currency:
+    type: double
+    multipleOf: 0.01
+
+  range:
+    type: mixin
+    consume: true # This instructs the mixin to remove any of the properties from the overlaid structure, this defaults to true.
+    properties:
+      dataType: integer # This is the value for the property, default.
+      min:
+        required: true
+      max:
+        required: true
+    structure: # This is the returned structure.
+      type: dataType # This is the value of the property, dataType.
+      minimum: min
+      maximum: max
+      exclusiveMaximum: true

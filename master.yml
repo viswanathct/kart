@@ -18,9 +18,9 @@ structure:
 
       objectStore:
         type: app.store
-        structure: customerServer # #Note: This will exclude customerServer.Config, as it's handled by the configStore.
+        structure: customerServer, store # #Note: This will exclude customerServer.Config, as it's handled by the configStore.
         platform: MySQL # #Note: This is a language agnostic builder for interfacing with MySQL.
 
     handlers:
       app.client: react
-      app.server: java-spring
+      app.server: java.spring
