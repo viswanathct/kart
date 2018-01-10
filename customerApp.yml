@@ -53,12 +53,12 @@ structure:
               - Order.Items.remove(last(filter(Order.Items, OrderItem => OrderItem.Dish == Dish)))
 
         Order: # This will query the route "/Order", no-params would be passed though, as the server knows the values. The call to create would be an update instead, if there were an Order returned from the server.
-          sync: no-wait # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be posted to the app, on load. In case of a failed sync, the object would be restored to its prior state.
-          fields: # Note: The field, User is bound th the Session, this automatically imports the Session from the server structure.
+          sync: no-wait # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be posted to the app, on load. In case of a failed sync, the object would be restored to its prior state. This is the case with errors too.
+          fields: # Note: The field, User is bound to the Session, this automatically imports the Session from the server structure.
             Shop:
               filter: Incoming => when(Shop, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
             state:
-              sync: wait # state change of the Order depends upon a success response from the server. #Note: Though wait, is the default option for sync, it's mentioned to override the parent config and to demonstrate.
+              sync: wait # The state change of the Order depends upon a success response from the server. #Note: Though wait, is the default option for sync, it's mentioned to override the parent config and to demonstrate.
             Items:
               filter: Items.Dish.Shop == Shop
               fields:

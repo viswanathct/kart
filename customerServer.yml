@@ -44,7 +44,9 @@ structure:
           Tags: List<string>
           Cuisines: List<string>
           Offers: List<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
-        error: shop-fetch-failed
+        error:
+          type: generic
+          message: "Operation failed." # The system itself should have pre-defined error codes and messages, depends
 
       Shops:
         type: Map # #Later: The notation Map<Shop> could be used, after the implementation of DSL parsing. #Note: A map is used, not a list, as there isn't a need for keeping it ordered.
@@ -76,6 +78,8 @@ structure:
         type: group
         filter:
           extend: User == CurrentUser # This filter is added to every child of the group.
+          error:
+            type: errors.permission # This would be converted to proper HTTP error codes and messages by the builders.
         fields: # Like other properties, fields to are overlaid on all the members.
           User:
             private: true
@@ -87,7 +91,6 @@ structure:
               Shop: Shop
               state:
                 type: enum('current', 'placed', 'dispatched', 'delivered', 'cancelled')
-                value: when(state == 'cancelled', ensure(state == 'current', error('Cannot cancel the order.'))
               DeliveryAddress: CustomerAddress
               Items:
                 type: list

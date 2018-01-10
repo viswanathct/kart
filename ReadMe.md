@@ -6,8 +6,6 @@ Kart
 ToDo
 ----
 
-* Figure out, error-handling.
-
 * Write the other apps.
 
 * Write the imports.
@@ -38,7 +36,7 @@ Decisions
 
 * Decided to combine create and update as a single method, save, as no specific reason for the separation could be imagined. Though the method is on, the core follows REST to play well with other tools. This also would reflect on the available permissions. Instead of CRUD permissions, there only would be read / write access (like a filesystem). Any further restriction could be imposed through code.
 
-* Nulls won't equal other nulls, as in SQL, so to ease declarations.
+* Nulls won't equal anything else, even other nulls (as in SQL), so to ease declarations.
 
 * Decided not to have partial providers, as it would mess-up the structure by complicating the abstractions. ie: Parts of structures, implicitly combined to make a a structure is often impossible to comprehend or maintain.
 
@@ -74,6 +72,8 @@ Thoughts
 * i18n could be done through overriding existing properties with language specific extensions.
 
 * DB migrations through object diffs, with previous commits. Or maintaining a last-known-good-build file of the super structure.
+
+* Dev version of the Apps could be built by adding dev-plugins to the build.
 
 Learned
 -------
@@ -161,3 +161,5 @@ Log
 
   * 1114  Renamed the property group.children to group.members.
   * 1157  Redid the structure of the master file, to follow a common syntax of the other files. It is now a special file only by convention.
+  * 1400  Decided to have standardized errors.
+  * 1422  Figured out error handling.
