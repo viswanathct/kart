@@ -61,7 +61,9 @@ structure:
           Shop: Shop # The data type of the field would be that of the id of the Complex type (Shop). This also creates a foreign key constraint on RDBMS. The capital case on the field name also signifies this.
           classification: [string]
           unitPrice: double
-          taxPercentage: 0.05, double, hidden # The first item is interpreted as a hard-coded value, as it doesn't match any other variable.
+          taxPercentage:
+            type: double
+            default: 0.05
           Customizations:
             type: List
             key: name

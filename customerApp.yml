@@ -37,6 +37,9 @@ structure:
 
       Dish: # The config overrides the values of server.Dish locally, as the server is the providing namespace.
         # providers: server.Dish # Providers provide the base for the object. The provided properties are overridden by customizations. There could be multiple providers (as a list) for an object.
+        fields:
+          taxPercentage:
+            hidden: true
         actions:
           addOrderItem:
             title: '+'

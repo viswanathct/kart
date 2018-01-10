@@ -27,6 +27,7 @@ Notes
 
 * Structures act as classes, when acting as providers and as singletons, when not.
 
+* Only changes would be transmitted by default.
 
 Decisions
 ---------
@@ -35,12 +36,16 @@ Decisions
 
 * Decided to infer permissions, rather than providing structures to explicitly set them, as the later doesn't seem to be necessary. Even if it were, it could later be added as a plugin.
 
-* Decided to combine create and update as a single method, save, as no specific reason for the separation could be imagined. Though the method is on, the core follows REST to play well with other tools. This also would reflect on the available permissions. Instead of CRUD permissions, there only would be read / write access. Any further restriction could be imposed through code.
+* Decided to combine create and update as a single method, save, as no specific reason for the separation could be imagined. Though the method is on, the core follows REST to play well with other tools. This also would reflect on the available permissions. Instead of CRUD permissions, there only would be read / write access (like a filesystem). Any further restriction could be imposed through code.
 
 * Nulls won't equal other nulls, as in SQL, so to ease declarations.
 
+* Decided not to have partial providers, as it would mess-up the structure by complicating the abstractions. ie: Parts of structures, implicitly combined to make a a structure is often impossible to comprehend or maintain.
+
 Thoughts
 --------
+
+* Writing native services would quicken the MVP.
 
 * Later, SQL expressions could be borrowed to achieve language independence. The choice is due to SQL being declarative, already. And also because of the availability of a well defined spec.
 
@@ -68,12 +73,25 @@ Thoughts
 
 * i18n could be done through overriding existing properties with language specific extensions.
 
+* DB migrations through object diffs, with previous commits. Or maintaining a last-known-good-build file of the super structure.
+
+Learned
+-------
+
+* Type specific interpretation of nulls isn't possible. Ex: Interpreting null for the type integer as 0, could prove correct for addition, but not for multiplication.
+
 Later
 -----
 
 * Scopes can be figured-out automatically. The same could also be done for data-types, this could also include the detection of type collisions.
 
 * Libraries of custom-types like, GUID, age etc.
+
+* Generating mock data from the structures. Though it wouldn't be needed for testing, it might be for demos.
+
+* A plugin for, request batching.
+
+* Generating clients for testing (probing) purposes.
 
 Log
 ---
@@ -142,3 +160,4 @@ Log
 * 180110
 
   * 1114  Renamed the property group.children to group.members.
+  * 1157  Redid the structure of the master file, to follow a common syntax of the other files. It is now a special file only by convention.
