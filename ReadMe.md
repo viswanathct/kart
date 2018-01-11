@@ -33,6 +33,8 @@ Notes
 
 * Imports are simple object extensions, with collision detection. Implicit overlays are considered as collisions. Imports should occur only from top to bottom and not right to left. ie: Providers shouldn't override earlier providers (left to right), but customizations should be done for such providers (top to bottom). This is to reign-in hidden structures.
 
+* A lot of assumptions are made, like, by default, time being persisted in UTC and displayed in local time.
+
 Decisions
 ---------
 
@@ -51,6 +53,8 @@ Decisions
 * Every property would support the value, none, to unset existing settings and possibly use defaults. And the value inherit, to inherit the value of its parent. just like CSS.
 
 * Evaluated items are read-only by default.
+
+* Decided to disallow YAML tags, as they aren't needed and also limit some expressions. This goes for any other feature that fulfills the said conditions.
 
 Thoughts
 --------
@@ -93,6 +97,8 @@ Learned
 -------
 
 * Type specific interpretation of nulls isn't possible. Ex: Interpreting null for the type integer as 0, could prove correct for addition, but not for multiplication.
+
+* Applying functions over lists are a lot more efficient, than applying the same over items, as the abstraction allows for Optimizations.
 
 Later
 -----
@@ -189,3 +195,4 @@ Log
 
   * 1000  Decided not to use hyphens in property names and values, so to ease the translation to other languages. camelCase would be used instead.
   * 1003  Introduced mixins.
+  * 1335  Described the main-screen.

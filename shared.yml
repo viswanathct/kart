@@ -9,6 +9,10 @@ declarations: # Declarations are a way to declare shorthands (aliases).
     type: double
     multipleOf: 0.01
 
+  mobileNumber:
+    type: string
+    pattern: '^\+\d+\d{10}$'
+
   range:
     type: mixin
     consume: true # This instructs the mixin to remove any of the properties from the overlaid structure, this defaults to true.

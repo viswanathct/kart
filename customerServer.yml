@@ -4,7 +4,7 @@ imports:
   - eka.shorthands.types.* # Provides type shorthands.
 
 declarations:
-  CurrentUser: User[Session.username] # This would be null, till a session is created.
+  CurrentUser: User[Session.id] # This would be null, till a session is created. #Note: The id is not necessary, as it would be inferred.
 
 structure:
   Server:
@@ -15,8 +15,10 @@ structure:
         fields: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
 
       User:
-        key: username
         fields:
+          id:
+            providers: mobileNumber
+            alias: mobileNumber
           username: string
           password: password # The fields is encrypted by default.
 
@@ -37,10 +39,13 @@ structure:
             min: 0
             max: 100
             default: 0 # Any property not processed by a mixin will be left as is.
+          promoText: string
+          notes: string
           rating: double
           relevance:
             providers: double
-            value: services.getShopRelevance(CurrentUser)
+            value: services.getShopRelevance(CurrentUser) # Evaluated fields aren't persisted to the DB, by default.
+          operatingHours: list<Interval> # Ex: [0-1, 3-5]
           avgCost: double
           Tags: list<string>
           Cuisines: list<string>
@@ -59,7 +64,7 @@ structure:
         orderBy: relevance descending
 
       Cuisines:
-        filter: name in Shops.shop.Cuisines
+        filter: in(name, Shops.shop.Cuisines) # Functions use RPN. ie: a + b becomes +ab.
         fields:
           name: string
 
@@ -115,20 +120,17 @@ structure:
                   Customizations:
                     type: delimitedList
                     delimiter: '\n'
-                    filter: Customization in Dish.Customizations # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
+                    filter: in(Customization, Dish.Customizations) # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
                   cost:
                     sharing: private # private fields are evaluated locally and not shared. These are helpful, when multiple local evaluations are needed on the field.
-                    value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost)
+                    value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # Evaluated values are rendered as read-only elements by the UI. The data type in this cases would be used to format the output.
               subTotal: private, sum(Items.cost) # The second item is assigned to the property, value. It's so as the expression doesn't resolve to a provider.
               taxes:
                 sharing: private
                 value: reduce(Items, 0, (Items, Item, trailing => trailing += Item.Dish.taxes)) # This isn't written as sum(Items.Dish.taxes), so to demonstrate the function, reduce.
               netTotal:
                 sharing: private
-                value: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy-evaluation).
-              createdAt:
-                value: currentTime()
-                scope: store
+                value: subTotal + deliveryCharge + taxes # #Note: The order of evaluation is not sequential, but based on need (lazy evaluation).
               remarks:
                 type: string
                 optional: true # The default value is false.

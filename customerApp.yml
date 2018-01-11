@@ -12,6 +12,8 @@ imports:
 
 declarations: # Declarations are a way to declare shorthands (aliases).
   server: customerServer # This is an alias, for an implicit import.
+  isOnHoliday: today() not in shop.holidays # shop is assumed to be the parameter.
+  ShopsOnHoliday: filter(Shops, isOnHoliday)
 
 structure:
   CustomerLocation: location
@@ -29,9 +31,23 @@ structure:
     type: group # The configuration of a group are shared by all of its members. #Note: Groups don't have a scope of their own; ie: the members of the group will live in the scope where the group is declared.
     providers: server # A namespace as a provider allows the overriding / overlaying of the members of the scope locally.
     members:
+      Shops:
+        value: server.Shops
+        refreshes:
+          timed:
+            condition: app.inactive
+            duration: 5m # This follows the default time-notation 1y1M1d0h1m1s.
+        filter: cascade(Filters.tagFilter, Filters.cuisineFilter, Filters.searchFilter)
+        orderBy: sortOrder
+
       Shop:
         action: SelectedShop = Shop # The default action is a touch or a click.
         route: Dishes # Route to the screen, Dishes when a shop is clicked. If the element were in another tab, it would (should) be brought forth too. ie: It couldn't be routed if the containing tab is disabled.
+        fields:
+          hasOffers: offer > 0 # This is a client-only property.
+          isAvailable:
+            type: boolean
+            value: shop not in ShopsOnHoliday and now() in shop.operatingHours # Values can also be SQL expressions. operatingHours is a list of Intervals, a custom type, that implements the operator, in.
 
       Dish: # The config overrides the values of server.Dish locally, as the server is the providing namespace.
         # providers: server.Dish # Providers provide the base for the object. The provided properties are overridden by customizations. There could be multiple providers (as a list) for an object.
@@ -56,9 +72,7 @@ structure:
           fields: # Note: The field, User is bound to the Session, this automatically imports the Session from the server structure.
             Shop:
               filter: Incoming => when(Shop != Incoming, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
-            DeliveryAddress:
-              value: SelectedAddress # A collection would be
-              action: refresh(SelectedAddress)
+            DeliveryAddress: SelectedAddress
             state:
               sync: wait # The state change of the Order depends upon a success response from the server. #Note: Though wait, is the default option for sync, it's mentioned to override the parent config and to demonstrate.
               filter: ensure(SelectedAddress) # #Note: For this to work ensure shouldn't return any value. Also, the filter had to be here, as data, which is synced to the do not have a submit method.
@@ -79,6 +93,7 @@ structure:
           # tree: {}
           nodes:
             Home:
+              title: Near you
               nodes:
                 CustomerLocation: Global.CustomerLocation = services.getUserLocation() # The keyword, Global is used for mere demonstration.
 
@@ -95,19 +110,52 @@ structure:
                     AppliedTagFilters: filter(Tags, true) # #Note: This variable is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
                   action: collect() # When a reference isn't passed, the object is inferred to be the reference. Hence, its fields would be used as the schema.
 
+                Greeting: server.InitData.greeting
+
                 Promos:
                   type: list<promo> # This essentially is a shorthand for a list of promos.
                   orderBy: weightage descending # The weightage is of the element.
 
-                ShopSelector:
-                  fields:
-                    sortOrder: rating descending, dit, avgCost
-                    Shops:
-                      value: server.Shops
-                      filter: cascade(Filters.tagFilter, Filters.cuisineFilter, Filters.searchFilter)
-                      orderBy: sortOrder
+                MasterScroll:
+                  type: kart.asidedList # This is a custom UI component.
+                  list:
+                    ShopSelector:
+                      elements:
+                        shopCount: count(Shops)
+                        sortOrder: rating descending, dit, avgCost
+                        ShopsList: Shops
+                  # asidesNavigation: auto # This is generated automatically. The images for the navigation are inferred from the names of the asides. These images are collected by the builder during the build process.
+                  Asides:
+                    group:
+                      value: Shops
+                      limit: 10
+                      filter:
+                        extend: shop.isAvailable
+                    members:
+                      WithOffers: # When there aren't any items, the element is hidden, so is its navigation link.
+                        filter: shop.Tags.offer # This is checked for a truthy value.
+                        title: Offers Near You
+                      FastestDelivery:
+                        filter: shop.deliveryTime < 35m
+                        orderBy: Shop.deliveryTime
+                        title: Super fast delivery
+                        subTitle: Lightning fast delivery in 35 minutes or less. T&C apply.
+                        element:
+                          value: Shop.Cuisines
+                          limit: 3
+                          cusines: join(Cuisines, ", ")
+                      TopRatedByCuisine: {}
+                  UnavailableToday:
+                    title: Unavailable today
+                    value: ShopsOnHoliday
+                  OpeningSoon:
+                    children:
+                      openingTime: Interval(currentTime(), currentTime() + 1h)
+                    title: Opening by $openingTime
+                    value: Shops
+                    filter: shop not in ShopsOnHoliday and openingTime in shop.operatingHours
 
-            Explore:
+            Explore: # In the absence of a title, TabSwitcher takes the key as the title for that tab.
               nodes:
                 searchText:
                   value: searchText
@@ -117,6 +165,8 @@ structure:
 
             Cart:
               value: Order # This binds the Cart to the Order.
+              ui.TabSwitcher.Config: # The key is not needed, but present as a demo.
+                tabNotification: count # This is processed by the TabSwitcher.
               fields:
                 Items: # This overlays Order.Items
                   groupBy: Items.Dish, Items.Customizations # #Later: Indexes on groupBy columns could be auto-generated to make the calculation cycles efficient.
