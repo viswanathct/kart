@@ -6,6 +6,8 @@ Kart
 ToDo
 ----
 
+* Find a way to communicate the schemas.
+
 * Write the other apps.
 
 * Write the imports.
@@ -34,6 +36,8 @@ Notes
 * Imports are simple object extensions, with collision detection. Implicit overlays are considered as collisions. Imports should occur only from top to bottom and not right to left. ie: Providers shouldn't override earlier providers (left to right), but customizations should be done for such providers (top to bottom). This is to reign-in hidden structures.
 
 * A lot of assumptions are made, like, by default, time being persisted in UTC and displayed in local time.
+
+* Though REST is the default mode of HTTP communication, other methods like RPC too could be used.
 
 Decisions
 ---------
@@ -99,6 +103,8 @@ Learned
 * Type specific interpretation of nulls isn't possible. Ex: Interpreting null for the type integer as 0, could prove correct for addition, but not for multiplication.
 
 * Applying functions over lists are a lot more efficient, than applying the same over items, as the abstraction allows for Optimizations.
+
+* If a REST call isn't straight forward, it is a sign for the need for another level of abstraction.
 
 Later
 -----
@@ -196,3 +202,11 @@ Log
   * 1000  Decided not to use hyphens in property names and values, so to ease the translation to other languages. camelCase would be used instead.
   * 1003  Introduced mixins.
   * 1335  Described the main-screen.
+  * 1505  Introduced the property, fields.<field>.title.
+  * 1602  Introduced a new type, ui.container.
+  * 1612  Introduced the property, ui.errorContent.
+  * 1700  Introduced the property, ui.node.emptyContent.
+  * 1700  Introduced the property, field.title.
+  * 1700  Introduced string templating.
+  * 1723  Decided to remove unaggregated items from grouped results, instead of forcing aggregation, so to ease the generation of nested data.
+  * 1749  Introduced the creation of anonymous structures, through nested values.

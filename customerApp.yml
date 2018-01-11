@@ -12,20 +12,26 @@ imports:
 
 declarations: # Declarations are a way to declare shorthands (aliases).
   server: customerServer # This is an alias, for an implicit import.
-  isOnHoliday: today() not in shop.holidays # shop is assumed to be the parameter.
-  ShopsOnHoliday: filter(Shops, isOnHoliday)
 
 structure:
   CustomerLocation: location
-  searchText: string
   SelectedShop: Shop
+  Session: collect(server.Session)
   SelectedAddress: collect(Addresses)
+  isOnHoliday: today() not in shop.holidays # shop is assumed to be the parameter.
+  ShopsOnHoliday: filter(Shops, isOnHoliday)
+  searchText:
+    type: string
+    minLength: 3 # The value won't change until this number of characters are entered.
+  SearchCache:
+    type: cachedList
+    observe: searchText
 
   Filters:
     children:
       tagFilter: Shop => hasMatch(Shop.Tags, App.Home.FiltersSelection.AppliedTagFilters) # #Note: The function itself, should be optimized for empty lists. Variable dependency too should be taken care of.
       cuisineFilter: Shop => hasMatch(Shop.Cuisines, filter(FiltersSelection.Cuisines, true))
-      searchFilter: Shop => when(searchText, has(Shop.name, searchText)) # Returning 'undefined' is interpreted as not filtered. #Note: The same filters could be used on the server side too.
+      searchFilter: Shop => when(searchText, service.levenshteinDistance(Shop.name, searchText) < 3) # Returning 'undefined' is interpreted as not filtered. #Note: The same filters could be used on the server side too.
 
   Server:
     type: group # The configuration of a group are shared by all of its members. #Note: Groups don't have a scope of their own; ie: the members of the group will live in the scope where the group is declared.
@@ -37,7 +43,7 @@ structure:
           timed:
             condition: app.inactive
             duration: 5m # This follows the default time-notation 1y1M1d0h1m1s.
-        filter: cascade(Filters.tagFilter, Filters.cuisineFilter, Filters.searchFilter)
+        filter: cascade(Filters.tagFilter, Filters.cuisineFilter)
         orderBy: sortOrder
 
       Shop:
@@ -86,6 +92,9 @@ structure:
     type: ui
     route: MainScreen
     config: {} # A placeholder for handler specific data. The core won't process the property.
+    errorContent:
+      noConnection: image # #Note: This image is shown on all containers whose fetches fail.
+      default: image
     nodes:
       MainScreen:
         Tabs:
@@ -98,17 +107,29 @@ structure:
                 CustomerLocation: Global.CustomerLocation = services.getUserLocation() # The keyword, Global is used for mere demonstration.
 
                 FiltersSelection: # Example for an hybrid (UI+Data) object.
-                  fields: # #Note: The type of the resource is inferred to be 'object' due to the existence of the property, fields.
-                    Tags:
-                      hasOffers:
-                        type: boolean
-                        value: False
-                      isPureVeg:
-                        type: boolean
-                        value: False # #Note: The value signifies, whether the filter is applied or not.
-                      Cuisines: server.Cuisines
-                    AppliedTagFilters: filter(Tags, true) # #Note: This variable is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
-                  action: collect() # When a reference isn't passed, the object is inferred to be the reference. Hence, its fields would be used as the schema.
+                  action: collect(FilterOptions) # When a reference isn't passed, the object is inferred to be the reference. Hence, its fields would be used as the schema.
+                  nodes:
+                    FilterOptions:
+                      title: Filter
+                    actions:
+                      Reset:
+                        action: Tags = false && Cuisines = false
+                      Apply:
+                        enabled: Tags || Cuisines
+                        route: MainScreen
+                    fields: # #Note: The type of the resource is inferred to be 'object' due to the existence of the property, fields.
+                      Tags:
+                        hasOffers:
+                          type: boolean
+                          value: False
+                        isPureVeg:
+                          type: boolean
+                          value: False # #Note: The value signifies, whether the filter is applied or not.
+                      Cuisines:
+                        value: server.Cuisines
+                        multiSelect: true
+                  children:
+                    AppliedTagFilters: filter(FilterOptions.Tags, true) # #Note: This variable is used for caching the function results. There is a plan to implement lazy evaluation, on functions, so that there won't be a need for explicit caching.
 
                 Greeting: server.InitData.greeting
 
@@ -121,9 +142,13 @@ structure:
                   list:
                     ShopSelector:
                       elements:
-                        shopCount: count(Shops)
-                        sortOrder: rating descending, dit, avgCost
-                        ShopsList: Shops
+                        shopCount: 'template("$1 Restaurants", count(Shops))'
+                        sortOrder:
+                          type: list
+                          values: rating descending, deliveryTime, avgCost # The list text would be inferred from the title / name of the options.
+                        ShopsList:
+                          value: Shops
+                          sortOrder: sortOrder
                   # asidesNavigation: auto # This is generated automatically. The images for the navigation are inferred from the names of the asides. These images are collected by the builder during the build process.
                   Asides:
                     group:
@@ -158,31 +183,70 @@ structure:
             Explore: # In the absence of a title, TabSwitcher takes the key as the title for that tab.
               nodes:
                 searchText:
+                  placeholder: 'Search for restaurants and dishes.'
                   value: searchText
                   handler: plugins.autoFill
                   plugins.autoFill.config: # This config is for the plugin, autoFill.
                     limit: 10
-
+                panes:
+                  type: container # Only one node of a container would be visible at a time.
+                  nodes:
+                    RecentSearches:
+                      title: 'Recent searches'
+                      value: SearchCache
+                      action: SelectedText => searchText = SelectedText
+                      hidden: not searchText
+                    Results:
+                      TabSwitcher:
+                        type: ui.tabSwitcher
+                        tabs:
+                          Restaurants:
+                            title: 'when(count(), "Related to ", "Sorry no restaurants match: ") + searchText'
+                            value: Shops
+                            filter: Filters.searchFilter
+                            limit: 20
+                            emptyContent: image
+                          Dishes:
+                            value: server.DishSuggestions
+                            emptyContent: image
+                            element:
+                              Shop:
+                                nodes:
+                                  Dishes: DishSuggestions.Dishes # The elements use the same view as other dishes, as the data-type is the same.
+                                  link:
+                                    title: 'Full menu'
+                                    action: SelectedShop = Shop
+                                    route: Dishes
             Cart:
               value: Order # This binds the Cart to the Order.
+              emptyContent: image # Empty content is also shown for empty dictionaries, not just empty lists.
               ui.TabSwitcher.Config: # The key is not needed, but present as a demo.
                 tabNotification: count # This is processed by the TabSwitcher.
               fields:
                 Items: # This overlays Order.Items
                   groupBy: Items.Dish, Items.Customizations # #Later: Indexes on groupBy columns could be auto-generated to make the calculation cycles efficient.
                   fields:
-                    cost: sum(Items.cost) # All fields that aren't in groupBy should be over-rode with aggregators. #Later: Default aggregators can be provided, based on the data type of the fields. The function mode for string, sum for double etc. # #Note: Items, here, resolve to the grouped Items, not the ungroupped Items. The later could be accessed through the notation, Cart.Items.
+                    cost: sum(Items.cost) # All fields that aren't in groupBy should be over-rode with aggregators, any field which isn't won't be in the result. #Note: Items, here, resolve to the grouped Items, not the ungroupped Items. The later could be accessed through the notation, Cart.Items.
                     count: count()
-                actions:
-                  addOrderItem:
-                    title: '+'
-                    action: Order.Items.add(Dish) # The symbol Dish is resolved to Items.Dish, through cascading.
-                  removeOrderItem:
-                    title: '-'
-                    sequence:
-                      - "Order.Items.remove(last(filter(Order.Items,
-                          OrderItem => OrderItem.Dish == Items.Dish && OrderItem.Customizations == Items.Customizations
-                        ))"
+                  actions:
+                    addOrderItem:
+                      title: '+'
+                      action: Order.Items.add(Dish) # The symbol Dish is resolved to Items.Dish, through cascading.
+                    removeOrderItem:
+                      title: '-'
+                      sequence:
+                        - "Order.Items.remove(last(filter(Order.Items,
+                            OrderItem => OrderItem.Dish == Items.Dish && OrderItem.Customizations == Items.Customizations
+                          ))"
+                DeliveryAddress:
+                  hidden: Session
+                  action: refresh(SelectedAddress)
+                LoginLink:
+                  hidden: '!Session'
+                  elements:
+                    title: Almost there
+                    subTitle: Login or signup to place your order
+                  action: refresh(Session)
               actions:
                 placeOrder:
                   title: 'Order'
@@ -192,9 +256,9 @@ structure:
           Account: {}
 
         TabSwitcher:
-            type: ui.tabSwitcher
-            config:
-              tabs: App.Tabs
+          type: ui.tabSwitcher
+          tabs: App.Tabs
+          images: true
 
       Dishes:
         type: list # No UI spec is given, so spec would be the same as the default of the handler, for such a structure.

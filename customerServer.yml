@@ -9,7 +9,7 @@ declarations:
 structure:
   Server:
     type: group
-    sharing: read
+    sharing: readOnly
     members:
       Config:
         fields: {} # A global state value with multiple config variables. It's not defined, in the interest of brevity.
@@ -32,7 +32,9 @@ structure:
           address: string
           lat: double, store
           long: double, store
-          deliveryTime: services.getDeliveryTime(Shop, CustomerLocation)
+          deliveryTime:
+            title: Delivery Time # Titles are human readable names of fields, they aren't passed along with the data, but with the schema.
+            value: services.getDeliveryTime(Shop, CustomerLocation)
           offer:
             type: shared.range # This is a mixin.
             dataType: integer
@@ -46,7 +48,9 @@ structure:
             providers: double
             value: services.getShopRelevance(CurrentUser) # Evaluated fields aren't persisted to the DB, by default.
           operatingHours: list<Interval> # Ex: [0-1, 3-5]
-          avgCost: double
+          avgCost:
+            type: double
+            title: Cost for two
           Tags: list<string>
           Cuisines: list<string>
           Offers: list<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
@@ -163,9 +167,28 @@ structure:
     members:
       Session:
         providers: User
-        filter: Local.User.password == User[Local.User.username].password
+        filter: password == User[id].password
+        fields:
+          username:
+            sharing: readOnly
 
-    InitData:
-      greeting:
-        filter: KeyValueStore.key == Config.locale + '.greeting.' + (currentTime() // 6)
-        value: KeyValueStore.value
+      InitData:
+        greeting:
+          filter: KeyValueStore.key == Config.locale + '.greeting.' + (currentTime() // 6)
+          value: KeyValueStore.value
+
+      DishSuggestions:
+        value:
+          value: Dish # This creates an anonymous collection.
+          filter: distance < 3
+          orderBy: distance descending
+          limit: 100
+          fields:
+            distance:
+              sharing: private
+              value: service.levenshteinDistance(name, searchText)
+        groupBy: Shop
+        limit: 6
+        fields: # The structure of the nested result.
+          Shop: Shop
+          Dishes: slice(Dish, 0, 3)
