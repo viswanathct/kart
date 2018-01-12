@@ -6,8 +6,6 @@ Kart
 ToDo
 ----
 
-* Find a way to communicate the schemas.
-
 * Write the other apps.
 
 * Write the imports.
@@ -38,6 +36,8 @@ Notes
 * A lot of assumptions are made, like, by default, time being persisted in UTC and displayed in local time.
 
 * Though REST is the default mode of HTTP communication, other methods like RPC too could be used.
+
+* Data can live anywhere, they would be pulled on need.
 
 Decisions
 ---------
@@ -97,6 +97,11 @@ Thoughts
 
 * Message boxes could be derived through schema, with buttons replacing radios.
 
+Optimizations
+#############
+
+* Fields that aren't used could be discarded. ie: Any field of a resource, not used by a client, could be removed from the response and even from the DB calls.
+
 Learned
 -------
 
@@ -120,6 +125,8 @@ Later
 * Generating clients for testing (probing) purposes.
 
 * Unused variables could be detected and skipped from the builds.
+
+* Tools: to suggest optimizations, to lint etc.
 
 Log
 ---
@@ -210,3 +217,9 @@ Log
   * 1700  Introduced string templating.
   * 1723  Decided to remove unaggregated items from grouped results, instead of forcing aggregation, so to ease the generation of nested data.
   * 1749  Introduced the creation of anonymous structures, through nested values.
+  * 2030  Decided to have space agnostic data and meta-data.
+
+* 180112
+
+  * 1205  Introduced a ui method, choose.
+  * 1609  Introduced \* notation to allow for dynamic overlays.

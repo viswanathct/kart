@@ -20,12 +20,11 @@ structure:
             providers: mobileNumber
             alias: mobileNumber
           username: string
-          password: password # The fields is encrypted by default.
-
-      Profile: {}
+          password: password # The fields is encrypted and private by default.
+          email: email
 
       Shop: # The same structure is used to define, both the data and the UI schemas.
-        type: object # 'id' is assumed to be the param for read requests. The request format is configurable to use query-strings or URL parts.
+        type: object # 'id' is assumed to be the param for read requests. The request format is configurable to use query-strings or URL parts. #ToDo: Think whether the type could be named as resource.
         fields:
           id: integer
           name: string
@@ -56,7 +55,7 @@ structure:
           Offers: list<Offer> # #ToDo: Define an offer object, which would allow a free dessert of values less than fifty rupees, for orders of value greater than 150.
         error:
           type: generic
-          message: "Operation failed." # The system itself should have predefined error codes and messages, depends
+          message: "Operation failed." # The system itself should have predefined, context-specific error codes and messages.
 
       Shops: # This wouldn't be persisted, as it's a map.
         type: map # #Later: The notation map<Shop> could be used, after the implementation of DSL parsing.
@@ -106,7 +105,7 @@ structure:
         fields: # Like other properties, fields to are overlaid on all the members.
           User:  # #Note: Later on this variable might be skipped in the client as it isn't used there.
             sharing: private
-            value: Session.User
+            value: CurrentUser
         members:
           Order:
             filter: state == 'current'
@@ -152,7 +151,37 @@ structure:
           fields:
             addressText: string
 
-      promo:
+        Favorite:
+          filter: Shop == SelectedShop
+          fields:
+            Shop: # No fields are returned, as the client just depends on the count of the returned objects.
+              type: Shop
+              sharing: private
+
+        Favorites:
+          source: Favorite
+          type: list
+
+        DeliveredOrders:
+          source: Order
+          filter: state == 'delivered'
+          orderBy: createdAt
+
+        Profile:
+          providers: User
+          fields:
+            id:
+              sharing: private
+            username:
+              sharing: readOnly
+
+      Offers:
+        fields:
+          code: string
+          text: string
+          conditions: json
+
+      Promo:
         id: string
         weightage: double
         effect: {} # Should be an effect overriding the Cart.
@@ -167,7 +196,7 @@ structure:
     members:
       Session:
         providers: User
-        filter: password == User[id].password
+        filter: password == User[id].password # Password always evaluated to the decrypted version.
         fields:
           username:
             sharing: readOnly

@@ -16,8 +16,8 @@ declarations: # Declarations are a way to declare shorthands (aliases).
 structure:
   CustomerLocation: location
   SelectedShop: Shop
-  Session: collect(server.Session)
-  SelectedAddress: collect(Addresses)
+  Session: server.Session.create()
+  SelectedAddress: choose(Addresses)
   isOnHoliday: today() not in shop.holidays # shop is assumed to be the parameter.
   ShopsOnHoliday: filter(Shops, isOnHoliday)
   searchText:
@@ -48,7 +48,7 @@ structure:
 
       Shop:
         action: SelectedShop = Shop # The default action is a touch or a click.
-        route: Dishes # Route to the screen, Dishes when a shop is clicked. If the element were in another tab, it would (should) be brought forth too. ie: It couldn't be routed if the containing tab is disabled.
+        route: ShopFront # Route to the screen, ShopFront when a shop is clicked. If the element were in another tab, it would (should) be brought forth too. ie: It couldn't be routed if the containing tab is disabled.
         fields:
           hasOffers: offer > 0 # This is a client-only property.
           isAvailable:
@@ -87,6 +87,13 @@ structure:
               filter: Items.Dish.Shop == Shop
               fields:
                 Customizations: filter(collect(Dish.Customizations), true).name # The collect function collects the data through a generated form, based on the given schema (Dish.Customizations). When a user cancels the action, every action till the event (of adding an Item) is cancelled.
+
+      DeliveredOrders:
+        value: server.DeliveredOrders
+        type: list
+        element: DeliveredOrder
+
+      DeliveredOrder: {}
 
   App:
     type: ui
@@ -134,7 +141,7 @@ structure:
                 Greeting: server.InitData.greeting
 
                 Promos:
-                  type: list<promo> # This essentially is a shorthand for a list of promos.
+                  type: list<Promo> # This essentially is a shorthand for a list of promos.
                   orderBy: weightage descending # The weightage is of the element.
 
                 MasterScroll:
@@ -170,15 +177,15 @@ structure:
                           limit: 3
                           cusines: join(Cuisines, ", ")
                       TopRatedByCuisine: {}
-                  UnavailableToday:
-                    title: Unavailable today
-                    value: ShopsOnHoliday
-                  OpeningSoon:
-                    children:
-                      openingTime: Interval(currentTime(), currentTime() + 1h)
-                    title: Opening by $openingTime
-                    value: Shops
-                    filter: shop not in ShopsOnHoliday and openingTime in shop.operatingHours
+                UnavailableToday:
+                  title: Unavailable today
+                  value: ShopsOnHoliday
+                OpeningSoon:
+                  children:
+                    openingTime: Interval(currentTime(), currentTime() + 1h)
+                  title: Opening by $openingTime
+                  value: Shops
+                  filter: shop not in ShopsOnHoliday and openingTime in shop.operatingHours
 
             Explore: # In the absence of a title, TabSwitcher takes the key as the title for that tab.
               nodes:
@@ -246,19 +253,75 @@ structure:
                   elements:
                     title: Almost there
                     subTitle: Login or signup to place your order
-                  action: refresh(Session)
+                  action: Session.create()
               actions:
                 placeOrder:
                   title: 'Order'
                   action: Order.state = 'placed' # The Order isn't submitted, as it's synced. Any state dependent state / action would be processed once the server returns a success.
                   # action: submit(Order) # Submission is not possible for synced data.
 
-          Account: {}
+          Account:
+            nodes:
+              Profile:
+                value: Profile
+                action: Profile.update()
+
+              MyAccount:
+                type: menu.verticalTree # This renders the child nodes as a menu.
+                title: 'My Account'
+                nodes:
+                  manageAddress:
+                    title: Manage Address
+                    action: collect(CustomerAddress)
+                  Payments:
+                    route: Payments # This could be inferred from the node name too.
+                  Favorites: {}
+                  Referrals: {}
+                  Offers: {}
+              DeliveredOrders:
+                title: 'Past Orders'
+                value: DeliveredOrders
+              logout:
+                action: Session.delete()
+              Help:
+                title: 'Help & FAQ'
+                nodes:
+                  HelpScreen:
+                    type: ui.screen
+                    nodes:
+                      RecentOrder:
+                        title: 'Recent Order'
+                        limit: 1 # This uses a cached response.
+                        value: DeliveredOrders
+                      PreviousOrders:
+                        title: 'Have issues with previous orders?'
+                        nodes:
+                          PreviousOrdersScreen:
+                            route: DeliveredOrders
 
         TabSwitcher:
           type: ui.tabSwitcher
           tabs: App.Tabs
           images: true
+
+      ShopFront:
+        children:
+          DishSearch:
+            type: string
+            minLength: 3
+
+        nodes:
+          favorite:
+            action: when(isFavorite, Favorite.delete(), Favorite.create())
+            fields:
+              isFavorite: boolean, Favorite # #Note: /Favorite?Shop=<SelectedShop>&User=<Session.User> returns an empty list when the Shop isn't favored, which is converted to false then.
+            class:
+              highlight: isFavorite
+            search:
+              action: collect(DishSearch)
+          Dishes: # #Not: The structure is simplified for demonstration.
+            value: Dishes
+            filter: when(DishSearch, filter(service.levenshteinDistance(Dish, DishSearch) < 3))
 
       Dishes:
         type: list # No UI spec is given, so spec would be the same as the default of the handler, for such a structure.
@@ -270,11 +333,35 @@ structure:
               size: small # This could also be in the description of the object dish. #Note: Though the structure has two variations of the Dish, the original and the customized, only the later will be built as the former isn't used anywhere else.
 
       Addresses:
-        type: list
+        type: list # #Note: The methods ui.collect and ui.choose work differently on lists.
         value: server.CustomerAddress
-        actions: create, update, delete
+        actions: create, update, delete # The update, calls the collect method on the elements.
         multiSelect: false # It's the default, yet given as demonstration.
         # limit: 5 # This will limit both the reads and writes. Later on, the server to could implement the limit, as long as the collection isn't accessed for other purposes. Incase of clashing limits, the highest limit might be applied.
         # navigation:
           # type: page # The default is scroll.
           # pageSize: 5 # The default is auto.
+
+      Favorites:
+        # children:
+        #   inFavourites: filter: Shop in server.Favorites # This provider too could be used instead of a group.
+        group:
+          elements:
+            '*':
+              filter: Shop in server.Favorites
+        members:
+          elements:
+            ShopSelector: MainScreen.MasterScroll.ShopSelector # This element is just a proxy to the original.
+            UnavailableToday: MainScreen.UnavailableToday
+            OpeningSoon: MainScreen.OpeningSoon
+
+      Referrals:
+        image: url
+        text: string
+        actions:
+          invite: Invite and earn
+          action: service.share(Session.User)
+
+      Offers: server.Offers
+
+# #Note: Some features (like the tracking screen) and nuances (like Dish category) aren't implemented, as they were thought to be an overkill.
