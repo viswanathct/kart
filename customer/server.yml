@@ -73,6 +73,7 @@ structure:
           name: string
 
       Dish:
+        readOnly: true
         fields:
           id: integer
           Shop: Shop # The data type of the field would be that of the id of the Complex type (Shop). This also creates a foreign key constraint on RDBMS. The capital case on the field name also signifies this.
@@ -119,15 +120,18 @@ structure:
                 sharing: writeOnly # This forces the customer to fill in the address, every time before ordering.
               Items:
                 type: list
-                fields: # Items could be read from and written to their own table (if the platform is an RDBMS), as the declaration has its own fields.
-                  Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
-                  Customizations:
-                    type: delimitedList
-                    delimiter: '\n'
-                    filter: in(Customization, Dish.Customizations) # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
-                  cost:
-                    sharing: private # private fields are evaluated locally and not shared. These are helpful, when multiple local evaluations are needed on the field.
-                    value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # Evaluated values are rendered as read-only elements by the UI. The data type in this cases would be used to format the output.
+                element:
+                  name: OrderItem
+                  fields: # Items could be read from and written to their own table (if the platform is an RDBMS), as the declaration has its own fields. The name is optional and defaults to Order.Items.
+                    Order: Order
+                    Dish: Dish # Only the id of the dish gets transferred, and the Server converts it back to the dish, as it knows the type.
+                    Customizations:
+                      type: delimitedList
+                      delimiter: '\n'
+                      filter: in(Customizations, Dish.Customizations) # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
+                    cost:
+                      sharing: private # private fields are evaluated locally and not shared. These are helpful, when multiple local evaluations are needed on the field.
+                      value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # Evaluated values are rendered as read-only elements by the UI. The data type in this cases would be used to format the output.
               subTotal: private, sum(Items.cost) # The second item is assigned to the property, value. It's so as the expression doesn't resolve to a provider.
               taxes:
                 sharing: private

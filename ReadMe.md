@@ -6,10 +6,6 @@ Kart
 ToDo
 ----
 
-* Write the other apps.
-
-* Write the imports.
-
 * Write an MVP.
 
 * List out the modules needed to process the structure.

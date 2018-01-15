@@ -10,14 +10,15 @@ imports:
   - customerServer.*
   - shared.location
 
-declarations: # Declarations are a way to declare aliases. ie: They couldn't be used to describe structures.
+declarations: # Declarations are a way to declare aliases and bindings. ie: They couldn't be used to configure structures or have expressions for evaluation.
   server: customerServer # This is an alias, for an implicit import.
 
 structure:
   CustomerLocation: location
-  SelectedShop: Shop
-  Session: server.Session.create()
-  SelectedAddress: choose(Addresses)
+  SelectedShop:
+    type: Shop
+    route: ShopFront # Route to the screen, ShopFront when a shop is clicked. If the element were in another tab, it would (should) be brought forth too. ie: It couldn't be routed if the containing tab is disabled.
+  Session: server.Session
   isOnHoliday: today() not in shop.holidays # shop is assumed to be the parameter.
   ShopsOnHoliday: filter(Shops, isOnHoliday)
   searchText:
@@ -41,24 +42,25 @@ structure:
         value: server.Shops
         refreshes:
           timed:
-            condition: app.inactive
+            condition: app.inactive # App is a global object provided by the handler.
             duration: 5m # This follows the default time-notation 1y1M1d0h1m1s.
-        filter: cascade(Filters.tagFilter, Filters.cuisineFilter)
+        filter: allOf(Filters.tagFilter, Filters.cuisineFilter) # allOf, essentially is a readable-and, where as an or would be oneOf.
         orderBy: sortOrder
 
       Shop:
         action: SelectedShop = Shop # The default action is a touch or a click.
-        route: ShopFront # Route to the screen, ShopFront when a shop is clicked. If the element were in another tab, it would (should) be brought forth too. ie: It couldn't be routed if the containing tab is disabled.
         fields:
-          hasOffers: offer > 0 # This is a client-only property.
+          hasOffers: offer > 0.0
           isAvailable:
             type: boolean
             value: shop not in ShopsOnHoliday and now() in shop.operatingHours # Values can also be SQL expressions. operatingHours is a list of Intervals, a custom type, that implements the operator, in.
 
       Dish: # The config overrides the values of server.Dish locally, as the server is the providing namespace.
         # providers: server.Dish # Providers provide the base for the object. The provided properties are overridden by customizations. There could be multiple providers (as a list) for an object.
-        readOnly: true
+        filter: Dish.Shop == SelectedShop # This would query the route /Dish?Shop=<SelectedShop.id>. The filter would not apply to client actions, as they don't affect the list (values of this list are set only from the server).
         fields:
+          image:
+            size: small # This could also be in the description of the object dish. #Note: Though the structure has two variations of the Dish, the original and the customized, only the later will be built as the former isn't used anywhere else.
           taxPercentage:
             hidden: true
         actions:
@@ -66,7 +68,7 @@ structure:
             title: '+'
             sequence:
               - Order.Shop = Shop
-              - Order.Items.add(Dish) # The added Dish is mapped to Items.Dish (through a type match). Other fields aren't passed as they are collected through the UI.
+              - 'Order.Items.add({Dish: Dish, Customizations: collect(App.Dish.Customizations})' # The collect function collects the data through a generated form, based on the given schema.
           removeOrderItem:
             title: '-'
             enabled: count(filter(Order.Items.Dish, Dish)) # When value is given for filter, other than a function, an equality check would be done.
@@ -78,27 +80,23 @@ structure:
           fields: # Note: The field, User is bound to the Session, this automatically imports the Session from the server structure.
             Shop:
               filter: Incoming => when(Shop != Incoming, confirm("Want to discard items from $Shop.name and buy from $Incoming.name?", Incoming)) # #Note: Filter functions on values are used as transformation hooks, any truthy value returned from such a function would be passed to the underlying setter.
-            DeliveryAddress: SelectedAddress
+            DeliveryAddress: collect(Addresses)
             state:
               sync: wait # The state change of the Order depends upon a success response from the server. #Note: Though wait, is the default option for sync, it's mentioned to override the parent config and to demonstrate.
-              filter: ensure(SelectedAddress) # #Note: For this to work ensure shouldn't return any value. Also, the filter had to be here, as data, which is synced to the do not have a submit method.
+              filter: ensure(DeliveryAddress) # #Note: For this to work ensure shouldn't return any value. Also, the filter had to be here, as the data, which is synced to the do not have a submit method.
               hidden: true
             Items:
-              filter: Items.Dish.Shop == Shop
-              fields:
-                Customizations: filter(collect(Dish.Customizations), true).name # The collect function collects the data through a generated form, based on the given schema (Dish.Customizations). When a user cancels the action, every action till the event (of adding an Item) is cancelled.
+              filter: Items.Dish.Shop == SelectedShop
 
       DeliveredOrders:
         value: server.DeliveredOrders
         type: list
-        element: DeliveredOrder
-
-      DeliveredOrder: {}
+        element: server.DeliveredOrder
 
   App:
     type: ui
-    route: MainScreen
-    config: {} # A placeholder for handler specific data. The core won't process the property.
+    route: MainScreen # The starting screen of the app.
+    config: {} # A placeholder for handler specific data. The core won't touch this property. ie: The data is passed as given, without extending, et all.
     errorContent:
       noConnection: image # #Note: This image is shown on all containers whose fetches fail.
       default: image
@@ -111,10 +109,10 @@ structure:
             Home:
               title: Near you
               nodes:
-                CustomerLocation: Global.CustomerLocation = services.getUserLocation() # The keyword, Global is used for mere demonstration.
+                CustomerLocation: Global.CustomerLocation = services.getUserLocation() # The keyword, Global is for mere demonstration.
 
                 FiltersSelection: # Example for an hybrid (UI+Data) object.
-                  action: collect(FilterOptions) # When a reference isn't passed, the object is inferred to be the reference. Hence, its fields would be used as the schema.
+                  action: collect(FilterOptions)
                   nodes:
                     FilterOptions:
                       title: Filter
@@ -152,7 +150,7 @@ structure:
                         shopCount: 'template("$1 Restaurants", count(Shops))'
                         sortOrder:
                           type: list
-                          values: rating descending, deliveryTime, avgCost # The list text would be inferred from the title / name of the options.
+                          values: rating descending, deliveryTime, avgCost # The list text would be inferred from the title / name of the options (from the Schema provided by the server).
                         ShopsList:
                           value: Shops
                           sortOrder: sortOrder
@@ -213,7 +211,8 @@ structure:
                             filter: Filters.searchFilter
                             limit: 20
                             emptyContent: image
-                          Dishes:
+                          DishSuggestions:
+                            title: Dishes
                             value: server.DishSuggestions
                             emptyContent: image
                             element:
@@ -238,7 +237,7 @@ structure:
                   actions:
                     addOrderItem:
                       title: '+'
-                      action: Order.Items.add(Dish) # The symbol Dish is resolved to Items.Dish, through cascading.
+                      action: OrderItem => Order.Items.add(OrderItem)
                     removeOrderItem:
                       title: '-'
                       sequence:
@@ -247,7 +246,6 @@ structure:
                           ))"
                 DeliveryAddress:
                   hidden: Session
-                  action: refresh(SelectedAddress)
                 LoginLink:
                   hidden: '!Session'
                   elements:
@@ -257,6 +255,7 @@ structure:
               actions:
                 placeOrder:
                   title: 'Order'
+                  filter: DeliveryAddress # This property maps to the enabled property of the action.
                   action: Order.state = 'placed' # The Order isn't submitted, as it's synced. Any state dependent state / action would be processed once the server returns a success.
                   # action: submit(Order) # Submission is not possible for synced data.
 
@@ -264,7 +263,7 @@ structure:
             nodes:
               Profile:
                 value: Profile
-                action: Profile.update()
+                action: Profile.edit().update()
 
               MyAccount:
                 type: menu.verticalTree # This renders the child nodes as a menu.
@@ -278,11 +277,6 @@ structure:
                   Favorites: {}
                   Referrals: {}
                   Offers: {}
-              DeliveredOrders:
-                title: 'Past Orders'
-                value: DeliveredOrders
-              logout:
-                action: Session.delete()
               Help:
                 title: 'Help & FAQ'
                 nodes:
@@ -298,6 +292,11 @@ structure:
                         nodes:
                           PreviousOrdersScreen:
                             route: DeliveredOrders
+              DeliveredOrders:
+                title: 'Past Orders'
+                value: DeliveredOrders
+              logout:
+                action: Session.delete()
 
         TabSwitcher:
           type: ui.tabSwitcher
@@ -319,18 +318,18 @@ structure:
               highlight: isFavorite
             search:
               action: collect(DishSearch)
-          Dishes: # #Not: The structure is simplified for demonstration.
+          Dishes: # #Note: The structure is simplified for demonstration.
             value: Dishes
             filter: when(DishSearch, filter(service.levenshteinDistance(Dish, DishSearch) < 3))
 
+      Dish:
+        elements:
+          Customizations:
+            multiSelect: true
+
       Dishes:
         type: list # No UI spec is given, so spec would be the same as the default of the handler, for such a structure.
-        element:
-          type: Dish
-          filter: Dish.Shop == SelectedShop # This would query the route /Dish?Shop=<SelectedShop.id>. The filter would not apply to client actions, as they don't affect the list (values of this list are set only from the server).
-          fields:
-            image:
-              size: small # This could also be in the description of the object dish. #Note: Though the structure has two variations of the Dish, the original and the customized, only the later will be built as the former isn't used anywhere else.
+        element: Dish
 
       Addresses:
         type: list # #Note: The methods ui.collect and ui.choose work differently on lists.
