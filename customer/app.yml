@@ -5,12 +5,12 @@ namespace: customerApp # When a namespace is not given, the filename is consider
 
 imports:
   - eka.shorthands.types.* # Provides type shorthands.
-  - services # #ToDo: Think of using python style "as" keyword.
-  - customerServer
+  - services
+  - customerServer #Note: Dictionaries could be used to implement python style, as keyword. Ex: {server: customerServer}. But this could be a bit verbose.
   - customerServer.*
   - shared.location
 
-declarations: # Declarations are a way to declare shorthands (aliases).
+declarations: # Declarations are a way to declare aliases. ie: They couldn't be used to describe structures.
   server: customerServer # This is an alias, for an implicit import.
 
 structure:

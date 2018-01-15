@@ -1,25 +1,30 @@
 ---
 # #Note: All the YAML files in the dir is parsed before the master is parsed. So to support implicit imports.
 
+imports:
+  - store
+
 structure:
   kart:
     type: app
     components:
-      customerApp: # The properties could be defined in the file root, too.
+      customerApp: # This is the namespace of the structure. It could be defined in the file root, too.
+        path: customer/app.yml # The extension is optional. It's yml by default. #Note: Paths always are relative to the project root, as the master structure passed to the builders is path agnostic.
         type: app.client # The dependency on the server app, would be resolved automatically, while parsing outgoing connections.
 
       customerServer:
+        path: customer/server.yml
         type: app.server
 
       configStore:
-        type: app.store # #Note: Dependencies of the DB-s are resoled through incoming connections.
+        type: app.store
         structure: customerServer # The value is a namespace.
-        platform: configStore # This is a custom plugin to manage app config.
+        handler: configStore # This is a custom plugin to manage app config.
 
       objectStore:
         type: app.store
         structure: customerServer, store # #Note: This will exclude customerServer.Config, as it's handled by the configStore.
-        platform: MySQL # #Note: This is a language agnostic builder for interfacing with MySQL.
+        handler: mysql # #Note: This is a language agnostic builder for interfacing with MySQL. This builds and manages the DB structures, as well as provide the structures facilitating access.
 
     handlers:
       app.client: react

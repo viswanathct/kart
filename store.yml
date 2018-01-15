@@ -1,4 +1,5 @@
 ---
-Order:
-  createdAt:
-    value: currentTime()
+structure:
+  Order:
+    createdAt:
+      value: currentTime() # The expressions are translated by the DB handler. In cases, in which the DB handler doesn't understand the expression, the translation could be delegated to the client. Later on hybrids could be allowed too.

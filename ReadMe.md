@@ -223,3 +223,8 @@ Log
 
   * 1205  Introduced a ui method, choose.
   * 1609  Introduced \* notation to allow for dynamic overlays.
+
+* 180115
+
+  * 1140  Disallowed implicit imports from the master file. So, to allow for clarity.
+  * 1150  Disallowed implicit imports, all together for clarity.

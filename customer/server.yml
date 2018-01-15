@@ -2,6 +2,7 @@
 # #Note: This is defined separately, as it's shared by multiple apps.
 imports:
   - eka.shorthands.types.* # Provides type shorthands.
+  - shared
 
 declarations:
   CurrentUser: User[Session.id] # This would be null, till a session is created. #Note: The id is not necessary, as it would be inferred.
@@ -147,7 +148,7 @@ structure:
 
         CustomerAddress:
           limit: 5 # This will limit both the reads and writes.
-          providers: shared.location # This is an implicit import.
+          providers: shared.location
           fields:
             addressText: string
 
@@ -203,7 +204,7 @@ structure:
 
       InitData:
         greeting:
-          filter: KeyValueStore.key == Config.locale + '.greeting.' + (currentTime() // 6)
+          filter: KeyValueStore.key == Config.locale + '.greeting.' + currentTime() // 6
           value: KeyValueStore.value
 
       DishSuggestions:
