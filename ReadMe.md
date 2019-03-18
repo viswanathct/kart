@@ -48,13 +48,13 @@ Decisions
 
 * Decided not to have partial providers, as it would mess-up the structure by complicating the abstractions. ie: Parts of structures, implicitly combined to make a a structure is often impossible to comprehend or maintain.
 
-* Routes of the UI represent actual visual elements. Elements are under a strict tree, even the loose ones like message-boxes reside under global.popups element.
+* Routes of the UI represent actual visual elements. Elements are under a strict tree, even the loose ones like message-boxes reside under a global.popups element.
 
-* Every property would support the value, none, to unset existing settings and possibly use defaults. And the value inherit, to inherit the value of its parent. just like CSS.
+* Every property would support the value, none, to unset existing settings and possibly use defaults. And the value inherit, to inherit the value of its parent, just like CSS.
 
 * Evaluated items are read-only by default.
 
-* Decided to disallow YAML tags, as they aren't needed and also limit some expressions. This goes for any other feature that fulfills the said conditions.
+* Decided to disallow YAML tags, as they aren't needed and they also limited some expressions. This goes for any other feature, which fulfills the said conditions.
 
 Thoughts
 --------

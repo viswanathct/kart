@@ -73,7 +73,7 @@ structure:
           name: string
 
       Dish:
-        readOnly: true
+        sharing: readOnly
         fields:
           id: integer
           Shop: Shop # The data type of the field would be that of the id of the Complex type (Shop). This also creates a foreign key constraint on RDBMS. The capital case on the field name also signifies this.
@@ -128,7 +128,7 @@ structure:
                     Customizations:
                       type: delimitedList
                       delimiter: '\n'
-                      filter: in(Customizations, Dish.Customizations) # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate the said simplicity.
+                      filter: in(Customizations, Dish.Customizations) # #Note: Customizations aren't defined as a separate type, for the sake of simplicity and to demonstrate, the said simplicity.
                     cost:
                       sharing: private # private fields are evaluated locally and not shared. These are helpful, when multiple local evaluations are needed on the field.
                       value: Dish.unitPrice + sum(Dish.Customizations[Customizations].cost) # Evaluated values are rendered as read-only elements by the UI. The data type in this cases would be used to format the output.

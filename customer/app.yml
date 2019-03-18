@@ -76,6 +76,7 @@ structure:
               - Order.Items.remove(last(filter(Order.Items, OrderItem => OrderItem.Dish == Dish)))
 
         Order: # This will query the route "/Order", no params would be passed though, as the server knows the values. The call to create would be an update instead, if there were an Order returned from the server.
+          value: server.Order
           sync: noWait # This tells that, any change to the object should be synced with the server. This also is a two-way sync, so any unsubmitted order from the server would be posted to the app, on load. In case of a failed sync, the object would be restored to its prior state. This is the case with errors too.
           fields: # Note: The field, User is bound to the Session, this automatically imports the Session from the server structure.
             Shop:
@@ -111,7 +112,7 @@ structure:
               nodes:
                 CustomerLocation: Global.CustomerLocation = services.getUserLocation() # The keyword, Global is for mere demonstration.
 
-                FiltersSelection: # Example for an hybrid (UI+Data) object.
+                FiltersSelection: # Example for an hybrid (UI + Data) object.
                   action: collect(FilterOptions)
                   nodes:
                     FilterOptions:
