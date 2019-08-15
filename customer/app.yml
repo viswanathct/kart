@@ -312,7 +312,7 @@ structure:
 
         nodes:
           favorite:
-            action: when(isFavorite, Favorite.delete(), Favorite.create())
+            action: when(isFavorite, Favorite.delete, Favorite.create)
             fields:
               isFavorite: boolean, Favorite # #Note: /Favorite?Shop=<SelectedShop>&User=<Session.User> returns an empty list when the Shop isn't favored, which is converted to false then.
             class:
@@ -344,11 +344,11 @@ structure:
 
       Favorites:
         # children:
-        #   inFavourites: filter: Shop in server.Favorites # This provider too could be used instead of a group.
+        #   inFavorites: filter: Shop in server.Favorites # This provider too could be used instead of a group.
         group:
           elements:
             '*':
-              filter: Shop in server.Favorites
+              filter: in(server.Favorites, Shop)
         members:
           elements:
             ShopSelector: MainScreen.MasterScroll.ShopSelector # This element is just a proxy to the original.
